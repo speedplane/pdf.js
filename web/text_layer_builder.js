@@ -261,18 +261,20 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
                 }
             }
         }
-        // Now update the padding
+        // Update the padding
         if(right.j != null) {
             var divj = textDivs[right.j];
             divi.style['padding-right'] = (N(divj.dataset.left) - divi_right) + "px";
         } else {
-            divi.style['padding-right'] = "300px";
+            // Take up the rest of the horizontal line on the page
+            divi.style['padding-right'] = (this.textLayerDiv.offsetWidth - divi_right) + "px";
         }
         if(bottom.j != null) {
             var divj = textDivs[bottom.j];
             divi.style['padding-bottom'] = (N(divj.dataset.top) - divi_bottom) + "px";
         } else {
-            divi.style['padding-bottom'] = "300px";
+            // Take up the rest of the vertical space on the page
+            divi.style['padding-bottom'] = (this.textLayerDiv.offsetHeight - divi_bottom) + "px";
         }
       }
       this.divContentDone = true;
