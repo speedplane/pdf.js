@@ -274,17 +274,17 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
         // Update the padding
         if(right.j != null) {
             var divj = textDivs[right.j];
-            divi.style['padding-right'] = (N(divj.dataset.left) - divi_right) + "px";
+            divi.style.paddingRight = (N(divj.dataset.left) - divi_right) + "px";
         } else {
             // Take up the rest of the horizontal line on the page
-            divi.style['padding-right'] = (this.textLayerDiv.offsetWidth - divi_right) + "px";
+            divi.style.paddingRight = (this.textLayerDiv.offsetWidth - divi_right) + "px";
         }
         if(bottom.j != null) {
             var divj = textDivs[bottom.j];
-            divi.style['padding-bottom'] = (N(divj.dataset.top) - divi_bottom) + "px";
+            divi.style.paddingBottom = (N(divj.dataset.top) - divi_bottom) + "px";
         } else {
             // Take up the rest of the vertical space on the page
-            divi.style['padding-bottom'] = (this.textLayerDiv.offsetHeight - divi_bottom) + "px";
+            divi.style.paddingBottom = (this.textLayerDiv.offsetHeight - divi_bottom) + "px";
         }
       }
       this.divContentDone = true;
