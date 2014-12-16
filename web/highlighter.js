@@ -41,6 +41,7 @@ Page = (function() {
     this.$displayPage = $("#display-page-" + this.pageNumber, this.highlighter._$displayWrapper);
   }
 
+  // To release any cyclic memory
   Page.prototype.destroy = function() {
     this.highlighter = null;
     this.pdfPage = null;
@@ -79,6 +80,7 @@ Page = (function() {
     return this._extractedText = PDFJS.pdfExtractText(this.textContent);
   };
 
+  // For debugging: draw divs for all segments
   Page.prototype._showSegments = function() {
     var divs, segment;
     divs = (function() {
@@ -105,6 +107,7 @@ Page = (function() {
     return this.$displayPage.append(divs);
   };
 
+  // For debugging: draw divs with text for all text segments
   Page.prototype._showTextSegments = function() {
     var divs, segment;
     divs = (function() {
@@ -125,7 +128,8 @@ Page = (function() {
       return;
     }
     if (this.highlightsEnabled) {
-      return;
+        // Highlights already enabled for this page
+        return;
     }
     return this.highlightsEnabled = true;
   };
@@ -145,8 +149,25 @@ Page = (function() {
     return this.textSegmentsDone = true;
   };
 
+	
   Page.prototype._cleanTextSegments = function() {
+  // TODO: A very specific fix which should be generalized, see 
+  // https://github.com/peerlibrary/peerlibrary/issues/664
+    /* We traverse from the end and search for segments which should be before 
+    the first segment and mark them unselectable. The rationale is that those 
+    segments which are spatially positioned before the first segment, but are 
+    out-of-order in the array are watermarks or headers and other elements not 
+    connected with the content, but they interfere with highlighting. It seems 
+    they are simply appended at the end so we search them only near the end. 
+    We still allow unselectable segments to be selected in the browser if user 
+    is directly over it.
+    See https://github.com/peerlibrary/peerlibrary/issues/387
+
+    Few segments can be correctly ordered among those at the end. For example, 
+    page numbers. 
+    */
     var segment, threshold, _i, _ref, _results;
+    // segments, currently chosen completely arbitrary (just that it is larger than 1)
     threshold = 5;
     _ref = this.textSegments;
     _results = [];
@@ -217,6 +238,8 @@ Page = (function() {
   Page.prototype._overTextSegment = function(position) {
     var index, segment, segmentIndex, _i, _len, _ref;
     segmentIndex = -1;
+    // We still want to allow unselectable segments to be selected in the
+    // browser if user is directly over it, so we go over all segments here.
     _ref = this.textSegments;
     for (index = _i = 0, _len = _ref.length; _i < _len; index = ++_i) {
       segment = _ref[index];
@@ -227,12 +250,27 @@ Page = (function() {
     }
     return segmentIndex;
   };
-
+  
+  // Finds a text layer segment which is it to the left and up of the given position
+  // and has highest index. Highest index means it is latest in the text flow of the
+  // page. So we are searching for for latest text layer segment in text flow on the
+  // page before the given position. Left and up is what is intuitively right for
+  // text which flows left to right, top to bottom.
   Page.prototype._findLastLeftUpTextSegment = function(position) {
     var index, segment, segmentIndex, _i, _len, _ref;
     segmentIndex = -1;
     _ref = this.textSegments;
     for (index = _i = 0, _len = _ref.length; _i < _len; index = ++_i) {
+      // We allow few additional pixels so that position can be slightly to the left
+      // of the text segment. This helps when user is with mouse between two columns
+      // of text. With this the text segment to the right (in the right column) is
+      // still selected when mouse is a bit to the left of the right column. Otherwise
+      // selection would immediately jump the the left column. Good text editors put
+      // this location when selection switches from right column to left column to the
+      // middle between columns, but we do not really have information about the columns
+      // so we at least make it a bit easier to the user. The only issue would be if
+      // columns would be so close that those additional pixels would move into the left
+      // column. This is unlikely if we keep the number small.
       segment = _ref[index];
       if (!segment.unselectable) {
         if (segment.boundingBox.left <= position.left + 10 * this.viewport.scale && segment.boundingBox.top <= position.top && index > segmentIndex) {
@@ -243,6 +281,7 @@ Page = (function() {
     return segmentIndex;
   };
 
+  // Simple search for closest text layer segment by euclidean distance
   Page.prototype._findClosestTextSegment = function(position) {
     var closestDistance, closestSegmentIndex, distance, index, segment, _i, _len, _ref;
     closestSegmentIndex = -1;
@@ -262,20 +301,46 @@ Page = (function() {
     return closestSegmentIndex;
   };
 
+  // Pads a text layer segment (identified by index) so that its padding comes
+  // under the position of the mouse. This makes text selection in browsers
+  // behave like mouse is still over the text layer segment DOM element, even
+  // when mouse is moved from it, for example, when dragging selection over empty
+  // space in pages where there are no text layer segments.
   Page.prototype._padTextSegment = function(position, index) {
     var $dom, angle, distance, left, padding, scaleX, segment, top;
     segment = this.textSegments[index];
     distance = this._distance(position, segment.boundingBox);
     $dom = segment.$domElement;
+
+    // Text layer segments can be rotated and scaled along x-axis
     angle = segment.angle;
     scaleX = segment.scaleX;
+
+    // Padding is scaled later on, so we apply scaling inversely here so that it 
+    // is exact after scaling later on. Without that when scaling is < 1, when 
+    // user moves far away from the text segment, padding falls behind and does 
+    // not reach mouse position anymore. Additionally, we add few pixels so 
+    // that user can move mouse fast and still stay in.
     padding = distance / scaleX + 20 * this.viewport.scale;
+
+    // Padding (and text) rotation transformation is done through CSS and
+    // we have to match it for margin, so we compute here margin under rotation.
+    // 2D vector rotation: http://www.siggraph.org/education/materials/HyperGraph/modeling/mod_tran/2drota.htm
+    // x' = x cos(f) - y sin(f), y' = x sin(f) + y cos(f)
+    // Additionally, we use CSS scaling transformation along x-axis on padding
+    // (and text), so we have to scale margin as well.
     left = padding * (scaleX * Math.cos(angle) - Math.sin(angle));
     top = padding * (scaleX * Math.sin(angle) + Math.cos(angle));
+    
     this.$displayPage.find('.text-layer-segment').css({
       padding: 0,
       margin: 0
     });
+
+    // Optimization if position is to the right and down of the segment. We do this
+    // because modifying both margin and padding slightly jitters text segment around
+    // because of rounding to pixel coordinates (text is scaled and rotated so margin
+    // and padding values do not fall nicely onto pixel coordinates).
     if (segment.boundingBox.left <= position.left && segment.boundingBox.top <= position.top) {
       $dom.css({
         paddingRight: padding,
@@ -283,6 +348,13 @@ Page = (function() {
       });
       return;
     }
+
+    // Otherwise we apply padding all around the text segment DOM element and 
+    // do not really care where the mouse position is, we have to change both 
+    // margin and padding anyway.
+    // We counteract text content position change introduced by padding by setting
+    // negative margin. With this, text content stays in place, but DOM element gets a
+    // necessary padding.
     return $dom.css({
       marginLeft: -left,
       marginTop: -top,
@@ -292,17 +364,43 @@ Page = (function() {
 
   Page.prototype.padTextSegments = function(event) {
     var position, segment, segmentIndex, skippedUnselectable, _ref;
+    
     position = this._eventToPosition(event);
+
+    // First check if we are directly above a text segment. We could combine this
+    // with _findLastLeftUpTextSegment below, but we also want to handle the case
+    // when we are directly above an unselectable segment.
     segmentIndex = this._overTextSegment(position);
+
     if (segmentIndex !== -1) {
       this._padTextSegment(position, segmentIndex);
       return;
     }
+    
+    // Find latest text layer segment in text flow on the page before the given position
     segmentIndex = this._findLastLeftUpTextSegment(position);
+
+    // segmentIndex might be -1, but @_distanceY returns infinity in this case, 
+    // so things work out
     if (this._distanceY(position, (_ref = this.textSegments[segmentIndex]) != null ? _ref.boundingBox : void 0) === 0) {
+      // A clear case, we are directly over a segment y-wise. This means that
+      // segment is to the left of mouse position (because we searched for
+      // all segments to the left and up of the position and we already checked
+      // if we are directly over a segment). This is the segment we want to pad.
       this._padTextSegment(position, segmentIndex);
       return;
     }
+    
+    // So we are close to the segment we want to pad, but we might currently have
+    // a segment which is in the middle of the text line above our position, so we
+    // search for the last text segment in that line, before it goes to the next
+    // (our, where our position is) line.
+    // On the other hand, segmentIndex might be -1 because we are on the left border
+    // of the page and there are no text segments to the left and up. So we as well
+    // do a search from the beginning of the page to the last text segment on the
+    // text line just above our position.
+    // We keep track of the number of skipped unselectable segments to not increase
+    // segmentIndex until we get to a selectable segment again (if we do at all).
     skippedUnselectable = 0;
     while (this.textSegments[segmentIndex + skippedUnselectable + 1]) {
       segment = this.textSegments[segmentIndex + skippedUnselectable + 1];
@@ -318,12 +416,23 @@ Page = (function() {
         }
       }
     }
+    
+    // segmentIndex can still be -1 if there are no text segments before
+    // the mouse position, so let's simply find closest segment and pad that.
+    // Not necessary for Chrome. There you can start selecting without being
+    // over any text segment and it will correctly start when you move over
+    // one. But in Firefox you have to start selecting over a text segment
+    // (or padded text segment) to work correctly later on.
     if (segmentIndex === -1) {
       segmentIndex = this._findClosestTextSegment(position);
     }
+    
+    // segmentIndex can still be -1 if there are no text segments on
+    // the page at all, then we do not have aynthing to do
     if (segmentIndex !== -1) {
       this._padTextSegment(position, segmentIndex);
     }
+    return null; // Make sure we don't return anything
   };
 
   Page.prototype.isRendered = function() {
@@ -339,13 +448,17 @@ Page = (function() {
   Page.prototype.render = function() {
     var $textLayerDummy, divs, index, segment;
     assert(this.highlightsEnabled);
+    
     $textLayerDummy = this.$displayPage.find('.text-layer-dummy');
+    
     if (!$textLayerDummy.is(':visible')) {
       return;
     }
+    
     if (this.rendering) {
       return;
     }
+    
     this.rendering = true;
     $textLayerDummy.hide();
     divs = (function() {
@@ -361,9 +474,14 @@ Page = (function() {
       }
       return _results;
     }).call(this);
+    
+    // There is no use rendering so many divs to make browser useless
+    // TODO: Report this to the server? Or should we simply discover such 
+    // PDFs already on the server when processing them?
     if (divs.length <= MAX_TEXT_LAYER_SEGMENTS_TO_RENDER) {
       this.$displayPage.find('.text-layer').append(divs);
     }
+    
     this.$displayPage.on('mousemove.highlighter', this.padTextSegments);
     this.rendering = false;
     return this.highlighter.pageRendered(this);
@@ -428,7 +546,12 @@ this.Highlighter = (function() {
     if (isPdf) {
       this._annotator.addPlugin('PeerLibraryPDF');
     }
+    
+    // Annotator.TextPositionAnchor does not seem to be set globally from the
+    // TextPosition's pluginInit, so let's do it here again
+    // TODO: Can this be fixed somehow?
     Annotator.TextPositionAnchor = this._annotator.plugins.TextPosition.Annotator.TextPositionAnchor;
+    
     if (isPdf) {
       $(window).on('scroll.highlighter resize.highlighter', this.checkRender);
     }
@@ -437,6 +560,9 @@ this.Highlighter = (function() {
   Highlighter.prototype.destroy = function() {
     var page, _i, _len, _ref, _ref1, _ref2;
     $(window).off('.highlighter');
+    
+    // We stop handles here and not just leave it to Deps.autorun to do it to 
+    // cleanup in the right order
     if ((_ref = this._highlightsHandle) != null) {
       _ref.stop();
     }
@@ -451,12 +577,12 @@ this.Highlighter = (function() {
       page.destroy();
     }
     this._pages = [];
-    this._numPages = null;
+    this._numPages = null; // To disable any asynchronous _checkHighlighting
     if (this._annotator) {
       this._annotator.destroy();
     }
-    this._annotator = null;
-    return this._$displayWrapper = null;
+    this._annotator = null; // To release any cyclic memory
+    return this._$displayWrapper = null; // To release any cyclic memory
   };
 
   Highlighter.prototype.setNumPages = function(_numPages) {
@@ -468,6 +594,7 @@ this.Highlighter = (function() {
   };
 
   Highlighter.prototype.setPage = function(viewport, pdfPage) {
+    // Initialize the page
     return this._pages[pdfPage.pageNumber - 1] = new Page(this, viewport, pdfPage);
   };
 
@@ -502,21 +629,30 @@ this.Highlighter = (function() {
     var $canvas, canvasBottom, canvasTop, page, pagesToRemove, pagesToRender, _i, _j, _k, _len, _len1, _len2, _ref;
     pagesToRender = [];
     pagesToRemove = [];
+    
     _ref = this._pages;
     for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+      // If page is just in process of being rendered, we skip it
       page = _ref[_i];
+      
       if (page.rendering) {
         continue;
       }
+      
+      // Page is not yet ready
       if (!page.highlightsEnabled) {
         continue;
       }
       $canvas = page.$displayPage.find('canvas');
+      
       canvasTop = $canvas.offset().top;
       canvasBottom = canvasTop + $canvas.height();
+      
+      // Add 500px so that we start rendering early
       if (canvasTop - 500 <= $(window).scrollTop() + $(window).height() && canvasBottom + 500 >= $(window).scrollTop()) {
         pagesToRender.push(page);
       } else {
+        // TODO: Only if page is not having a user selection (multipage selection in progress)
         pagesToRemove.push(page);
       }
     }
@@ -573,11 +709,13 @@ this.Highlighter = (function() {
 
   Highlighter.prototype.pageRendered = function(page) {
     var _ref, _ref1;
+    // We update the mapper for new page
     return (_ref = this._annotator) != null ? (_ref1 = _ref.domMapper) != null ? _ref1.pageRendered(page.pageNumber) : void 0 : void 0;
   };
 
   Highlighter.prototype.pageRemoved = function(page) {
     var _ref, _ref1;
+    // We update the mapper for removed page
     return (_ref = this._annotator) != null ? (_ref1 = _ref.domMapper) != null ? _ref1.pageRemoved(page.pageNumber) : void 0 : void 0;
   };
 
