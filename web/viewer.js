@@ -43,13 +43,13 @@ var DISABLE_AUTO_FETCH_LOADING_BAR_TIMEOUT = 5000;
 
 PDFJS.imageResourcesPath = './images/';
 //#if (FIREFOX || MOZCENTRAL || B2G || GENERIC || CHROME)
-//PDFJS.workerSrc = '../build/pdf.worker.js';
+//PDFJS.workerSrc = '/site_media/pdfjs/pdf.worker.js';
 //#endif
 //#if !PRODUCTION
 PDFJS.cMapUrl = '../external/bcmaps/';
 PDFJS.cMapPacked = true;
 //#else
-//PDFJS.cMapUrl = '../web/cmaps/';
+//PDFJS.cMapUrl = './cmaps/';
 //PDFJS.cMapPacked = true;
 //#endif
 
@@ -1392,12 +1392,20 @@ window.PDFView = PDFViewerApplication; // obsolete name, using it as an alias
 function webViewerLoad(evt) {
   PDFViewerApplication.initialize().then(webViewerInitialized);
 }
+function webViewerLoadFile(file) {
+	PDFViewerApplication.initialize().then(function () {
+		return webViewerInitialized(file);
+	});
+}
 
-function webViewerInitialized() {
+
+function webViewerInitialized(file) {
 //#if (GENERIC || B2G)
-  var queryString = document.location.search.substring(1);
-  var params = PDFViewerApplication.parseQueryString(queryString);
-  var file = 'file' in params ? params.file : DEFAULT_URL;
+  if(!file) {
+	var queryString = document.location.search.substring(1);
+	var params = PDFViewerApplication.parseQueryString(queryString);
+	file = 'file' in params ? params.file : DEFAULT_URL;
+ }
 //#endif
 //#if (FIREFOX || MOZCENTRAL)
 //var file = window.location.href.split('#')[0];
@@ -1661,7 +1669,7 @@ function webViewerInitialized() {
 //#endif
 }
 
-document.addEventListener('DOMContentLoaded', webViewerLoad, true);
+// document.addEventListener('DOMContentLoaded', webViewerLoad, true);
 
 document.addEventListener('pagerendered', function (e) {
   var pageNumber = e.detail.pageNumber;
