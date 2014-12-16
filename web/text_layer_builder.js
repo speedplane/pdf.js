@@ -175,8 +175,10 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
 
       textDiv.dataset.left = left;
       textDiv.dataset.top = top;
-      textDiv.dataset.width = geom.width * (style.vertical ? 1 : this.viewport.scale);
-      textDiv.dataset.height = geom.height * (style.vertical ? this.viewport.scale : 1);
+      textDiv.dataset.width = geom.width * (style.vertical ?
+												1 : this.viewport.scale);
+      textDiv.dataset.height = geom.height * (style.vertical ?
+												this.viewport.scale : 1);
 
       textDiv.textContent = geom.str;
       // |fontName| is only used by the Font Inspector. This test will succeed
@@ -207,15 +209,17 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
 
       var textItems = textContent.items;
       var textDivs = [];
-      for (var i = 0, len = textItems.length; i < len; i++) {
-        var div = this.appendText(textItems[i], textContent.styles);
-        if(div) textDivs.push(div);
+      for (var it = 0, len = textItems.length; it < len; it++) {
+        var div = this.appendText(textItems[it], textContent.styles);
+        if(div) {
+			textDivs.push(div);
+		}
       }
       var N = Number;
       
       // Set each element's padding to run to the nearest right and bottom 
       // element. The padding ensures that text selection works.
-      for (var i = 0, len = textDivs.length; i < len; i++) {
+      for (var i = 0, leni = textDivs.length; i < leni; i++) {
         // TODO: This is an O(N^2) algorithm. There are others out there.
         // See generally http://en.wikipedia.org/wiki/Nearest_neighbor_search
         var divi = textDivs[i];
@@ -224,9 +228,11 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
         // Keep track of the closest right and bottom elements
         var right = { j : null, d : 1e6 };
         var bottom = { j : null, d : 1e6 };
-        var e = .01; // Allow elements to overlap
-        for (var j = 0, len = textDivs.length; j < len; j++) {
-            if(i==j) continue;
+        var e = 0.01; // Allow elements to overlap
+        for (var j = 0, lenj = textDivs.length; j < lenj; j++) {
+            if(i === j) {
+				continue;
+			}
             var divj = textDivs[j];
             
             // Consider divj if it's on the same line
@@ -235,7 +241,8 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
                 (N(divi.dataset.top) <= N(divj.dataset.top) &&
                     divi_bottom > N(divj.dataset.top)) || (
                 N(divi.dataset.top) >= N(divj.dataset.top) &&
-                    N(divi.dataset.top) < N(divj.dataset.top) + N(divj.dataset.height))
+                    N(divi.dataset.top) < N(divj.dataset.top) +
+													N(divj.dataset.height))
             )) {
                 var dright = divi_right - N(divj.dataset.left);
                 // Now update the max
@@ -251,7 +258,8 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
                 (N(divi.dataset.left) <= N(divj.dataset.left) &&
                     divi_right > N(divj.dataset.left)) || (
                 N(divi.dataset.left) >= N(divj.dataset.left) &&
-                    N(divi.dataset.left) < N(divj.dataset.left) + N(divj.dataset.width))
+                    N(divi.dataset.left) < N(divj.dataset.left) +
+														N(divj.dataset.width))
             )) {
                 // Distance from bottom to top
                 var dbottom = Number(divj.dataset.top) - divi_bottom;
@@ -261,21 +269,15 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
                 }
             }
         }
-        // Update the padding
-        if(right.j != null) {
-            var divj = textDivs[right.j];
-            divi.style.paddingRight = (N(divj.dataset.left) - divi_right) + "px";
-        } else {
-            // Take up the rest of the horizontal line on the page
-            divi.style.paddingRight = (this.textLayerDiv.offsetWidth - divi_right) + "px";
-        }
-        if(bottom.j != null) {
-            var divj = textDivs[bottom.j];
-            divi.style.paddingBottom = (N(divj.dataset.top) - divi_bottom) + "px";
-        } else {
-            // Take up the rest of the vertical space on the page
-            divi.style.paddingBottom = (this.textLayerDiv.offsetHeight - divi_bottom) + "px";
-        }
+		// Update the padding
+		divi.style.paddingRight = right.j !== null ?
+					(N(textDivs[right.j].dataset.left) - divi_right) + 'px':
+					// Take up the rest of the horizontal line on the page
+					(this.textLayerDiv.offsetWidth - divi_right) + 'px';
+        divi.style.paddingBottom = bottom.j !== null ?
+					(N(textDivs[bottom.j].dataset.top) - divi_bottom) + 'px':
+					// Take up the rest of the vertical space on the page
+					(this.textLayerDiv.offsetHeight - divi_bottom) + 'px';
       }
       this.divContentDone = true;
       this.setupRenderLayoutTimer();
