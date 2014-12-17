@@ -358,9 +358,9 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
         
         this.textDivs.push(divadd);
         added[a] = true;
-        while(divadd.dataset.next !== null) {
+        while(typeof(divadd.dataset.next) != "undefined") {
             var next = N(divadd.dataset.next);
-            // delete divadd.dataset.next;
+            delete divadd.dataset.next;
             if(added[next]) {
                 break;
             }
