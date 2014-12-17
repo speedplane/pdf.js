@@ -78,9 +78,6 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
       var lastFontFamily;
       for (var i = 0; i < textDivsLength; i++) {
         var textDiv = textDivs[i];
-        if (textDiv.dataset.isWhitespace !== undefined) {
-          continue;
-        }
 
         var fontSize = textDiv.style.fontSize;
         var fontFamily = textDiv.style.fontFamily;
@@ -141,10 +138,10 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
     appendText: function TextLayerBuilder_appendText(geom, styles) {
       var style = styles[geom.fontName];
       var textDiv = document.createElement('div');
-      this.textDivs.push(textDiv);
       if (isAllWhitespace(geom.str)) {
+        // Whitespace elements aren't visible, but they're used for copy/paste.
         textDiv.dataset.isWhitespace = true;
-        return;
+        textDiv.className += ' whitespace';
       }
       var tx = PDFJS.Util.transform(this.viewport.transform, geom.transform);
       var angle = Math.atan2(tx[1], tx[0]);
@@ -175,10 +172,8 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
 
       textDiv.dataset.left = left;
       textDiv.dataset.top = top;
-      textDiv.dataset.width = geom.width * (style.vertical ?
-												1 : this.viewport.scale);
-      textDiv.dataset.height = geom.height * (style.vertical ?
-												this.viewport.scale : 1);
+      textDiv.dataset.width = geom.width * this.viewport.scale;
+      textDiv.dataset.height = geom.height * this.viewport.scale;
 
       textDiv.textContent = geom.str;
       // |fontName| is only used by the Font Inspector. This test will succeed
@@ -190,6 +185,9 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
       // Storing into dataset will convert number into string.
       if (angle !== 0) {
         textDiv.dataset.angle = angle * (180 / Math.PI);
+      }
+      if(style.vertical) {
+        textDiv.dataset.vertical = true;
       }
       // We don't bother scaling single-char text divs, because it has very
       // little effect on text highlighting. This makes scrolling on docs with
@@ -205,17 +203,21 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
     },
 
     setTextContent: function TextLayerBuilder_setTextContent(textContent) {
+      var debug = false;
       this.textContent = textContent;
 
       var textItems = textContent.items;
       var textDivs = [];
       for (var it = 0, len = textItems.length; it < len; it++) {
-        var div = this.appendText(textItems[it], textContent.styles);
-        if(div) {
-			textDivs.push(div);
-		}
+        textDivs.push(this.appendText(textItems[it], textContent.styles));
       }
       var N = Number;
+      
+      
+      function overlapBy(min1, min2, max1, max2, by) {
+        var d = Math.min(max1,max2) - Math.max(N(min1),N(min2));
+        return d > (max1-min1) * by || d > (max2-min2) * by;
+      }
       
       // Set each element's padding to run to the nearest right and bottom 
       // element. The padding ensures that text selection works.
@@ -228,23 +230,25 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
         // Keep track of the closest right and bottom elements
         var right = { j : null, d : 1e6 };
         var bottom = { j : null, d : 1e6 };
-        var e = 0.01; // Allow elements to overlap
+        // Allow elements overlap by a half pixel w/o being behind the object.
+        var e = 0.5*this.viewport.scale;
+        console.log(divi.innerHTML);
         for (var j = 0, lenj = textDivs.length; j < lenj; j++) {
             if(i === j) {
-				continue;
-			}
+                continue;
+            }
             var divj = textDivs[j];
-            
-            // Consider divj if it's on the same line
+            // Consider divj if it's on the same line. 
+            // First make sure it's ahead.
             if(divi_right <= e + N(divj.dataset.left) && (
                 // Vertical intersection
-                (N(divi.dataset.top) <= N(divj.dataset.top) &&
-                    divi_bottom > N(divj.dataset.top)) || (
-                N(divi.dataset.top) >= N(divj.dataset.top) &&
-                    N(divi.dataset.top) < N(divj.dataset.top) +
-													N(divj.dataset.height))
+                overlapBy(divi.dataset.top, divj.dataset.top, divi_bottom,
+                            N(divj.dataset.top) + N(divj.dataset.height), 0.5)
             )) {
-                var dright = divi_right - N(divj.dataset.left);
+                var dright = N(divj.dataset.left) - divi_right;
+                if(debug) {
+                    console.log('   H: ' + divj.innerHTML + ' --> ' + dright);
+                }
                 // Now update the max
                 if(dright < right.d) {
                     right.d = dright;
@@ -259,26 +263,103 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
                     divi_right > N(divj.dataset.left)) || (
                 N(divi.dataset.left) >= N(divj.dataset.left) &&
                     N(divi.dataset.left) < N(divj.dataset.left) +
-														N(divj.dataset.width))
+                                                        N(divj.dataset.width))
             )) {
                 // Distance from bottom to top
                 var dbottom = Number(divj.dataset.top) - divi_bottom;
+                if(debug) {
+                    console.log('   V: ' + divj.innerHTML + ' --> ' + dbottom);
+                }
                 if(dbottom < bottom.d) {
                     bottom.d = dbottom;
                     bottom.j = j;
                 }
             }
         }
-		// Update the padding
-		divi.style.paddingRight = right.j !== null ?
-					(N(textDivs[right.j].dataset.left) - divi_right) + 'px':
-					// Take up the rest of the horizontal line on the page
-					(this.textLayerDiv.offsetWidth - divi_right) + 'px';
+        // Update the padding
+        divi.style.paddingRight = right.j !== null ?
+                    (N(textDivs[right.j].dataset.left) - divi_right) + 'px':
+                    // Take up the rest of the horizontal line on the page
+                    (this.textLayerDiv.offsetWidth - divi_right) + 'px';
         divi.style.paddingBottom = bottom.j !== null ?
-					(N(textDivs[bottom.j].dataset.top) - divi_bottom) + 'px':
-					// Take up the rest of the vertical space on the page
-					(this.textLayerDiv.offsetHeight - divi_bottom) + 'px';
+                    (N(textDivs[bottom.j].dataset.top) - divi_bottom) + 'px':
+                    // Take up the rest of the vertical space on the page
+                    (this.textLayerDiv.offsetHeight - divi_bottom) + 'px';
+        if(debug) {
+            console.log('H ' + right.j + ': ' +
+                    (right.j ? textDivs[right.j].innerHTML : ''));
+            console.log('V ' + bottom.j+ ': ' +
+                    (bottom.j ? textDivs[bottom.j].innerHTML:''));
+            console.log('');
+        }
+        
+        // Put the divs into a linked list based on their order.
+        if(divi.dataset.vertical && bottom.j) {
+            // Is there such thing as rows of vertical text? FixMe if so.
+            divi.dataset.next = bottom.j;
+        } else if(!divi.dataset.vertical && right.j && bottom.j) {
+            // Check for columns. Be conservative and don't re-order unless
+            // we're sure it isn't a column.
+            var divb = textDivs[bottom.j];
+            var divr = textDivs[right.j];
+            // Must be less than 20% page to reorder (columns usually more)
+            if(N(divi.dataset.width) < this.textLayerDiv.offsetWidth/3 &&
+                N(divr.dataset.width) < this.textLayerDiv.offsetWidth/3 && (
+                // Either require the line to be very small
+                N(divi.dataset.width) < this.textLayerDiv.offsetWidth/50 ||
+                // If they are much closer laterally than vertically.
+                right.d < bottom.d/2 ||
+                // Or require they're not very overlapped
+                !overlapBy(divi.dataset.left, divb.dataset.left, divi_right,
+                    N(divb.dataset.width) + N(divb.dataset.left), 0.8))) {
+                // Not a column, reorder.
+                divi.dataset.next = right.j;
+            }
+        } else if(!divi.dataset.vertical && right.j) {
+            // This could be the last line of a text column page. This is
+            // harder so we're less conservative.
+            var divr2 = textDivs[right.j];
+            // Must be less than 20% page to reorder (columns usually more)
+            if(N(divi.dataset.width) < this.textLayerDiv.offsetWidth/3 &&
+                N(divr2.dataset.width) < this.textLayerDiv.offsetWidth/3) {
+                // Either require the line to be very small
+                divi.dataset.next = right.j;
+            }
+        }
+        // Make the reverse linked list.
+        if(divi.dataset.next) {
+            textDivs[N(divi.dataset.next)].dataset.prev = i;
+        }
       }
+      
+      // Final pass, we 
+      var added = {};
+      for (var a = 0, lena = textDivs.length; a < lena; a++) {
+        if(added[a]) {
+            continue;
+        }
+        var divadd = textDivs[a];
+        if(divadd.dataset.prev) {
+            // Do not process this text element yet, it is linked to by 
+            // another text element.
+            delete divadd.dataset.prev;
+            continue;
+        }
+        
+        this.textDivs.push(divadd);
+        added[a] = true;
+        while(divadd.dataset.next !== null) {
+            var next = N(divadd.dataset.next);
+            // delete divadd.dataset.next;
+            if(added[next]) {
+                break;
+            }
+            divadd = textDivs[next];
+            this.textDivs.push(divadd);
+            added[next] = true;
+        }
+      }
+      
       this.divContentDone = true;
       this.setupRenderLayoutTimer();
     },
