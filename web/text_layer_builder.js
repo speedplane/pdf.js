@@ -13,11 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-/* globals CustomStyle, PDFJS */
+/* globals CustomStyle, scrollIntoView, PDFJS */
 
 'use strict';
 
+var FIND_SCROLL_OFFSET_TOP = -50;
+var FIND_SCROLL_OFFSET_LEFT = -400;
 var MAX_TEXT_DIVS_TO_RENDER = 100000;
+var RENDER_DELAY = 200; // ms
 
 var NonWhitespaceRegexp = /\S/;
 
@@ -30,6 +33,9 @@ function isAllWhitespace(str) {
  * @property {HTMLDivElement} textLayerDiv - The text layer container.
  * @property {number} pageIndex - The page index.
  * @property {PageViewport} viewport - The viewport of the text layer.
+ * @property {ILastScrollSource} lastScrollSource - The object that records when
+ *   last time scroll happened.
+ * @property {boolean} isViewerInPresentationMode
  * @property {PDFFindController} findController
  */
 
@@ -43,27 +49,18 @@ function isAllWhitespace(str) {
 var TextLayerBuilder = (function TextLayerBuilderClosure() {
   function TextLayerBuilder(options) {
     this.textLayerDiv = options.textLayerDiv;
-    this.renderingDone = false;
+    this.layoutDone = false;
     this.divContentDone = false;
     this.pageIdx = options.pageIndex;
-    this.pageNumber = this.pageIdx + 1;
     this.matches = [];
+    this.lastScrollSource = options.lastScrollSource || null;
     this.viewport = options.viewport;
+    this.isViewerInPresentationMode = options.isViewerInPresentationMode;
     this.textDivs = [];
     this.findController = options.findController || null;
   }
 
   TextLayerBuilder.prototype = {
-    _finishRendering: function TextLayerBuilder_finishRendering() {
-      this.renderingDone = true;
-
-      var event = document.createEvent('CustomEvent');
-      event.initCustomEvent('textlayerrendered', true, true, {
-        pageNumber: this.pageNumber
-      });
-      this.textLayerDiv.dispatchEvent(event);
-    },
-
     renderLayer: function TextLayerBuilder_renderLayer() {
       var textLayerFrag = document.createDocumentFragment();
       var textDivs = this.textDivs;
@@ -74,7 +71,6 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
       // No point in rendering many divs as it would make the browser
       // unusable even after the divs are rendered.
       if (textDivsLength > MAX_TEXT_DIVS_TO_RENDER) {
-        this._finishRendering();
         return;
       }
 
@@ -82,9 +78,6 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
       var lastFontFamily;
       for (var i = 0; i < textDivsLength; i++) {
         var textDiv = textDivs[i];
-        if (textDiv.dataset.isWhitespace !== undefined) {
-          continue;
-        }
 
         var fontSize = textDiv.style.fontSize;
         var fontFamily = textDiv.style.fontFamily;
@@ -118,43 +111,37 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
       }
 
       this.textLayerDiv.appendChild(textLayerFrag);
-      this._finishRendering();
+      this.renderingDone = true;
       this.updateMatches();
     },
 
-    /**
-     * Renders the text layer.
-     * @param {number} timeout (optional) if specified, the rendering waits
-     *   for specified amount of ms.
-     */
-    render: function TextLayerBuilder_render(timeout) {
-      if (!this.divContentDone || this.renderingDone) {
-        return;
-      }
+    setupRenderLayoutTimer:
+        function TextLayerBuilder_setupRenderLayoutTimer() {
+      // Schedule renderLayout() if the user has been scrolling,
+      // otherwise run it right away.
+      var self = this;
+      var lastScroll = (this.lastScrollSource === null ?
+                        0 : this.lastScrollSource.lastScroll);
 
-      if (this.renderTimer) {
-        clearTimeout(this.renderTimer);
-        this.renderTimer = null;
-      }
-
-      if (!timeout) { // Render right away
+      if (Date.now() - lastScroll > RENDER_DELAY) { // Render right away
         this.renderLayer();
       } else { // Schedule
-        var self = this;
+        if (this.renderTimer) {
+          clearTimeout(this.renderTimer);
+        }
         this.renderTimer = setTimeout(function() {
-          self.renderLayer();
-          self.renderTimer = null;
-        }, timeout);
+          self.setupRenderLayoutTimer();
+        }, RENDER_DELAY);
       }
     },
 
     appendText: function TextLayerBuilder_appendText(geom, styles) {
       var style = styles[geom.fontName];
       var textDiv = document.createElement('div');
-      this.textDivs.push(textDiv);
       if (isAllWhitespace(geom.str)) {
+        // Whitespace elements aren't visible, but they're used for copy/paste.
         textDiv.dataset.isWhitespace = true;
-        return;
+        textDiv.className += ' whitespace';
       }
       var tx = PDFJS.Util.transform(this.viewport.transform, geom.transform);
       var angle = Math.atan2(tx[1], tx[0]);
@@ -185,10 +172,8 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
 
       textDiv.dataset.left = left;
       textDiv.dataset.top = top;
-      textDiv.dataset.width = geom.width * (style.vertical ?
-												1 : this.viewport.scale);
-      textDiv.dataset.height = geom.height * (style.vertical ?
-												this.viewport.scale : 1);
+      textDiv.dataset.width = geom.width * this.viewport.scale;
+      textDiv.dataset.height = geom.height * this.viewport.scale;
 
       textDiv.textContent = geom.str;
       // |fontName| is only used by the Font Inspector. This test will succeed
@@ -200,6 +185,9 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
       // Storing into dataset will convert number into string.
       if (angle !== 0) {
         textDiv.dataset.angle = angle * (180 / Math.PI);
+      }
+      if(style.vertical) {
+        textDiv.dataset.vertical = true;
       }
       // We don't bother scaling single-char text divs, because it has very
       // little effect on text highlighting. This makes scrolling on docs with
@@ -215,17 +203,64 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
     },
 
     setTextContent: function TextLayerBuilder_setTextContent(textContent) {
+      var debug = false;
       this.textContent = textContent;
 
       var textItems = textContent.items;
       var textDivs = [];
       for (var it = 0, len = textItems.length; it < len; it++) {
-        var div = this.appendText(textItems[it], textContent.styles);
-        if(div) {
-			textDivs.push(div);
-		}
+        textDivs.push(this.appendText(textItems[it], textContent.styles));
       }
       var N = Number;
+      
+      
+      function overlapBy(min1, min2, max1, max2, by) {
+        var d = Math.min(max1,max2) - Math.max(N(min1),N(min2));
+        return d > (max1-min1) * by || d > (max2-min2) * by;
+      }
+      
+      var page_width = this.textLayerDiv.offsetWidth;
+      /**
+       * @d     the div that we're checking.
+       * @right structure telling us the div to the right.
+       * @bottom structure telling us the div to the bottom.
+       *
+       * @return true if the right item "could be" a separate text column. We 
+       *         return false if we know that it isn't.  We change the text 
+       *         layout if it's not a column in order to improve selectability.
+       **/
+      function could_be_column(d, right, bottom) {
+        if(right.d < page_width/50) {
+            // If the space to the right is tiny, then it's not a column.
+            return false;
+        }
+        if(N(d.dataset.width) > page_width/2) {
+            // Can't be true if we're so wide.
+            return false;
+        }
+        var divr = textDivs[right.j];
+        if(N(divr.dataset.width) > page_width/2) {
+            // Can't be true if the right is so wide.
+            return false;
+        }
+        // If the horizontal space between d and divr is much smaller than the
+        // vertical space between the next legitimate line.
+        if(bottom && right.d < bottom.d && bottom.d < N(d.dataset.height)) {
+            return false;
+        }
+        // Whitespace should not connect columns and won't matter if it does.
+        if(d.dataset.isWhitespace || divr.dataset.isWhitespace) {
+            return false;
+        }
+        // If there is any horizontal overlap, then not a column.
+        if(overlapBy(divi.dataset.left, divr.dataset.left, divi_right,
+                        N(divr.dataset.width) + N(divr.dataset.left), 0)) {
+            return false;
+        }
+        
+        // We cannot rule out that this is a text column, return true.
+        return true;
+      }
       
       // Set each element's padding to run to the nearest right and bottom 
       // element. The padding ensures that text selection works.
@@ -238,23 +273,25 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
         // Keep track of the closest right and bottom elements
         var right = { j : null, d : 1e6 };
         var bottom = { j : null, d : 1e6 };
-        var e = 0.01; // Allow elements to overlap
+        // Allow elements overlap by a half pixel w/o being behind the object.
+        var e = 0.5*this.viewport.scale;
+        console.log(divi.innerHTML);
         for (var j = 0, lenj = textDivs.length; j < lenj; j++) {
             if(i === j) {
-				continue;
-			}
+                continue;
+            }
             var divj = textDivs[j];
-            
-            // Consider divj if it's on the same line
+            // Consider divj if it's on the same line. 
+            // First make sure it's ahead.
             if(divi_right <= e + N(divj.dataset.left) && (
                 // Vertical intersection
-                (N(divi.dataset.top) <= N(divj.dataset.top) &&
-                    divi_bottom > N(divj.dataset.top)) || (
-                N(divi.dataset.top) >= N(divj.dataset.top) &&
-                    N(divi.dataset.top) < N(divj.dataset.top) +
-													N(divj.dataset.height))
+                overlapBy(divi.dataset.top, divj.dataset.top, divi_bottom,
+                            N(divj.dataset.top) + N(divj.dataset.height), 0.5)
             )) {
-                var dright = divi_right - N(divj.dataset.left);
+                var dright = N(divj.dataset.left) - divi_right;
+                if(debug) {
+                    console.log('   H: ' + divj.innerHTML + ' --> ' + dright);
+                }
                 // Now update the max
                 if(dright < right.d) {
                     right.d = dright;
@@ -269,27 +306,82 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
                     divi_right > N(divj.dataset.left)) || (
                 N(divi.dataset.left) >= N(divj.dataset.left) &&
                     N(divi.dataset.left) < N(divj.dataset.left) +
-														N(divj.dataset.width))
+                                                        N(divj.dataset.width))
             )) {
                 // Distance from bottom to top
                 var dbottom = Number(divj.dataset.top) - divi_bottom;
+                if(debug) {
+                    console.log('   V: ' + divj.innerHTML + ' --> ' + dbottom);
+                }
                 if(dbottom < bottom.d) {
                     bottom.d = dbottom;
                     bottom.j = j;
                 }
             }
         }
-		// Update the padding
-		divi.style.paddingRight = right.j !== null ?
-					(N(textDivs[right.j].dataset.left) - divi_right) + 'px':
-					// Take up the rest of the horizontal line on the page
-					(this.textLayerDiv.offsetWidth - divi_right) + 'px';
+        // Update the padding
+        divi.style.paddingRight = right.j !== null ?
+                    (N(textDivs[right.j].dataset.left) - divi_right) + 'px':
+                    // Take up the rest of the horizontal line on the page
+                    (this.textLayerDiv.offsetWidth - divi_right) + 'px';
         divi.style.paddingBottom = bottom.j !== null ?
-					(N(textDivs[bottom.j].dataset.top) - divi_bottom) + 'px':
-					// Take up the rest of the vertical space on the page
-					(this.textLayerDiv.offsetHeight - divi_bottom) + 'px';
+                    (N(textDivs[bottom.j].dataset.top) - divi_bottom) + 'px':
+                    // Take up the rest of the vertical space on the page
+                    (this.textLayerDiv.offsetHeight - divi_bottom) + 'px';
+        if(debug) {
+            console.log('H ' + right.j + ': ' +
+                    (right.j ? textDivs[right.j].innerHTML : ''));
+            console.log('V ' + bottom.j+ ': ' +
+                    (bottom.j ? textDivs[bottom.j].innerHTML:''));
+            console.log('');
+        }
+        
+        // Put the divs into a linked list based on their order.
+        if(divi.dataset.vertical && bottom.j) {
+            // Is there such thing as rows of vertical text? FixMe if so.
+            divi.dataset.next = bottom.j;
+        } else if(!divi.dataset.vertical && right.j) {
+            // Check for columns.
+            if(!could_be_column(divi, right, bottom)) {
+                divi.dataset.next = right.j;
+            }
+        }
+        // Make the reverse linked list.
+        if(divi.dataset.next) {
+            textDivs[N(divi.dataset.next)].dataset.prev = i;
+        }
       }
+      
+      // Final pass, we 
+      var added = {};
+      for (var a = 0, lena = textDivs.length; a < lena; a++) {
+        if(added[a]) {
+            continue;
+        }
+        var divadd = textDivs[a];
+        if(divadd.dataset.prev) {
+            // Do not process this text element yet, it is linked to by 
+            // another text element.
+            delete divadd.dataset.prev;
+            continue;
+        }
+        
+        this.textDivs.push(divadd);
+        added[a] = true;
+        while(typeof(divadd.dataset.next) !== 'undefined') {
+            var next = N(divadd.dataset.next);
+            delete divadd.dataset.next;
+            if(added[next]) {
+                break;
+            }
+            divadd = textDivs[next];
+            this.textDivs.push(divadd);
+            added[next] = true;
+        }
+      }
+      
       this.divContentDone = true;
+      this.setupRenderLayoutTimer();
     },
 
     convertMatches: function TextLayerBuilder_convertMatches(matches) {
@@ -351,9 +443,8 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
       var bidiTexts = this.textContent.items;
       var textDivs = this.textDivs;
       var prevEnd = null;
-      var pageIdx = this.pageIdx;
       var isSelectedPage = (this.findController === null ?
-        false : (pageIdx === this.findController.selected.pageIdx));
+        false : (this.pageIdx === this.findController.selected.pageIdx));
       var selectedMatchIdx = (this.findController === null ?
                               -1 : this.findController.selected.matchIdx);
       var highlightAll = (this.findController === null ?
@@ -399,9 +490,10 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
         var isSelected = (isSelectedPage && i === selectedMatchIdx);
         var highlightSuffix = (isSelected ? ' selected' : '');
 
-        if (this.findController) {
-          this.findController.updateMatchPosition(pageIdx, i, textDivs,
-                                                  begin.divIdx, end.divIdx);
+        if (isSelected && !this.isViewerInPresentationMode) {
+          scrollIntoView(textDivs[begin.divIdx],
+                         { top: FIND_SCROLL_OFFSET_TOP,
+                           left: FIND_SCROLL_OFFSET_LEFT });
         }
 
         // Match inside new div.
@@ -472,24 +564,3 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
   };
   return TextLayerBuilder;
 })();
-
-/**
- * @constructor
- * @implements IPDFTextLayerFactory
- */
-function DefaultTextLayerFactory() {}
-DefaultTextLayerFactory.prototype = {
-  /**
-   * @param {HTMLDivElement} textLayerDiv
-   * @param {number} pageIndex
-   * @param {PageViewport} viewport
-   * @returns {TextLayerBuilder}
-   */
-  createTextLayerBuilder: function (textLayerDiv, pageIndex, viewport) {
-    return new TextLayerBuilder({
-      textLayerDiv: textLayerDiv,
-      pageIndex: pageIndex,
-      viewport: viewport
-    });
-  }
-};
