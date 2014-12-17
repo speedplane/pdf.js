@@ -755,6 +755,8 @@ html[dir='rtl'] .dropdownToolbarButton {
 }
 
 .dropdownToolbarButton > select {
+  -webkit-appearance: none;
+  -moz-appearance: none; /* in the future this might matter, see bugzilla bug #649849 */
   min-width: 140px;
   font-size: 12px;
   color: hsl(0,0%,95%);
@@ -1113,13 +1115,9 @@ html[dir='rtl'] .verticalToolbarSeparator {
   margin-bottom: 10px;
 }
 
-#thumbnailView > a:last-of-type > .thumbnail:not([data-loaded]) {
-  margin-bottom: 9px;
-}
-
 .thumbnail:not([data-loaded]) {
   border: 1px dashed rgba(255, 255, 255, 0.5);
-  margin: -1px -1px 4px -1px;
+  margin-bottom: 10px;
 }
 
 .thumbnailImage {
@@ -1128,8 +1126,6 @@ html[dir='rtl'] .verticalToolbarSeparator {
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
   opacity: 0.8;
   z-index: 99;
-  background-color: white;
-  background-clip: content-box;
 }
 
 .thumbnailSelectionRing {
@@ -1262,11 +1258,20 @@ html[dir='rtl'] .attachmentsItem > button {
   cursor: default;
 }
 
+
 /* TODO: file FF bug to support ::-moz-selection:window-inactive
    so we can override the opaque grey background when the window is inactive;
    see https://bugzilla.mozilla.org/show_bug.cgi?id=706209 */
 ::selection { background: rgba(0,0,255,0.3); }
 ::-moz-selection { background: rgba(0,0,255,0.3); }
+
+.textLayer ::selection { background: rgb(0,0,255); }
+.textLayer ::-moz-selection { background: rgb(0,0,255); }
+.textLayer .whitespace::selection { background: none; }
+.textLayer .whitespace::-moz-selection { background: none; }
+.textLayer {
+  opacity: 0.2;
+}
 
 #errorWrapper {
   background: none repeat scroll 0 0 #FF5555;
@@ -1716,10 +1721,6 @@ html[dir='rtl'] #documentPropertiesOverlay .row > * {
     top: 0;
     left: 0;
     display: block;
-  }
-  #printContainer div {
-    page-break-after: always;
-    page-break-inside: avoid;
   }
 }
 
