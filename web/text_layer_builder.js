@@ -229,6 +229,49 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
         return d > (max1-min1) * by || d > (max2-min2) * by;
       }
       
+      var page_width = this.textLayerDiv.offsetWidth;
+      /**
+       * @d     the div that we're checking.
+       * @right structure telling us the div to the right.
+       * @bottom structure telling us the div to the bottom.
+       *
+       * @return true if the right item "could be" a separate text column. We 
+       *         return false if we know that it isn't.  We change the text 
+       *         layout if it's not a column in order to improve selectability.
+       **/
+      function could_be_column(d, right, bottom) {
+        if(right.d < page_width/50) {
+            // If the space to the right is tiny, then it's not a column.
+            return false;
+        }
+        if(N(d.dataset.width) > page_width/2) {
+            // Can't be true if we're so wide.
+            return false;
+        }
+        var divr = textDivs[right.j];
+        if(N(divr.dataset.width) > page_width/2) {
+            // Can't be true if the right is so wide.
+            return false;
+        }
+        // If the horizontal space between d and divr is much smaller than the
+        // vertical space between the next legitimate line.
+        if(bottom && right.d < bottom.d && bottom.d < N(d.dataset.height)) {
+            return false;
+        }
+        // Whitespace should not connect columns and won't matter if it does.
+        if(d.dataset.isWhitespace || divr.dataset.isWhitespace) {
+            return false;
+        }
+        // If there is any horizontal overlap, then not a column.
+        if(overlapBy(divi.dataset.left, divr.dataset.left, divi_right,
+                        N(divr.dataset.width) + N(divr.dataset.left), 0)) {
+            return false;
+        }
+        
+        // We cannot rule out that this is a text column, return true.
+        return true;
+      }
+      
       // Set each element's padding to run to the nearest right and bottom 
       // element. The padding ensures that text selection works.
       for (var i = 0, leni = textDivs.length; i < leni; i++) {
@@ -307,32 +350,9 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
         if(divi.dataset.vertical && bottom.j) {
             // Is there such thing as rows of vertical text? FixMe if so.
             divi.dataset.next = bottom.j;
-        } else if(!divi.dataset.vertical && right.j && bottom.j) {
-            // Check for columns. Be conservative and don't re-order unless
-            // we're sure it isn't a column.
-            var divb = textDivs[bottom.j];
-            var divr = textDivs[right.j];
-            // Must be less than 20% page to reorder (columns usually more)
-            if(N(divi.dataset.width) < this.textLayerDiv.offsetWidth/3 &&
-                N(divr.dataset.width) < this.textLayerDiv.offsetWidth/3 && (
-                // Either require the line to be very small
-                N(divi.dataset.width) < this.textLayerDiv.offsetWidth/50 ||
-                // If they are much closer laterally than vertically.
-                right.d < bottom.d/2 ||
-                // Or require they're not very overlapped
-                !overlapBy(divi.dataset.left, divb.dataset.left, divi_right,
-                    N(divb.dataset.width) + N(divb.dataset.left), 0.8))) {
-                // Not a column, reorder.
-                divi.dataset.next = right.j;
-            }
         } else if(!divi.dataset.vertical && right.j) {
-            // This could be the last line of a text column page. This is
-            // harder so we're less conservative.
-            var divr2 = textDivs[right.j];
-            // Must be less than 20% page to reorder (columns usually more)
-            if(N(divi.dataset.width) < this.textLayerDiv.offsetWidth/3 &&
-                N(divr2.dataset.width) < this.textLayerDiv.offsetWidth/3) {
-                // Either require the line to be very small
+            // Check for columns.
+            if(!could_be_column(divi, right, bottom)) {
                 divi.dataset.next = right.j;
             }
         }
