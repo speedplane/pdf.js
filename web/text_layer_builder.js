@@ -400,7 +400,7 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
                 // Save this bottom for another pass.
                 divi.dataset.saved_bottom = bottom.j;
             } else {
-                ; // Not sure of a safe way to find the next line.
+                // Not sure of a safe way to find the next line.
             }
         } else if(could_be_next_line(divi, bottom)) {
             divi.dataset.saved_bottom = bottom.j;
