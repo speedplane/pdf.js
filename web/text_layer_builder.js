@@ -13,11 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-/* globals CustomStyle, PDFJS */
+/* globals CustomStyle, scrollIntoView, PDFJS */
 
 'use strict';
 
+var FIND_SCROLL_OFFSET_TOP = -50;
+var FIND_SCROLL_OFFSET_LEFT = -400;
 var MAX_TEXT_DIVS_TO_RENDER = 100000;
+var RENDER_DELAY = 200; // ms
 
 var NonWhitespaceRegexp = /\S/;
 
@@ -30,6 +33,9 @@ function isAllWhitespace(str) {
  * @property {HTMLDivElement} textLayerDiv - The text layer container.
  * @property {number} pageIndex - The page index.
  * @property {PageViewport} viewport - The viewport of the text layer.
+ * @property {ILastScrollSource} lastScrollSource - The object that records when
+ *   last time scroll happened.
+ * @property {boolean} isViewerInPresentationMode
  * @property {PDFFindController} findController
  */
 
@@ -43,27 +49,18 @@ function isAllWhitespace(str) {
 var TextLayerBuilder = (function TextLayerBuilderClosure() {
   function TextLayerBuilder(options) {
     this.textLayerDiv = options.textLayerDiv;
-    this.renderingDone = false;
+    this.layoutDone = false;
     this.divContentDone = false;
     this.pageIdx = options.pageIndex;
-    this.pageNumber = this.pageIdx + 1;
     this.matches = [];
+    this.lastScrollSource = options.lastScrollSource || null;
     this.viewport = options.viewport;
+    this.isViewerInPresentationMode = options.isViewerInPresentationMode;
     this.textDivs = [];
     this.findController = options.findController || null;
   }
 
   TextLayerBuilder.prototype = {
-    _finishRendering: function TextLayerBuilder_finishRendering() {
-      this.renderingDone = true;
-
-      var event = document.createEvent('CustomEvent');
-      event.initCustomEvent('textlayerrendered', true, true, {
-        pageNumber: this.pageNumber
-      });
-      this.textLayerDiv.dispatchEvent(event);
-    },
-
     renderLayer: function TextLayerBuilder_renderLayer() {
       var textLayerFrag = document.createDocumentFragment();
       var textDivs = this.textDivs;
@@ -74,7 +71,6 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
       // No point in rendering many divs as it would make the browser
       // unusable even after the divs are rendered.
       if (textDivsLength > MAX_TEXT_DIVS_TO_RENDER) {
-        this._finishRendering();
         return;
       }
 
@@ -115,33 +111,27 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
       }
 
       this.textLayerDiv.appendChild(textLayerFrag);
-      this._finishRendering();
+      this.renderingDone = true;
       this.updateMatches();
     },
 
-    /**
-     * Renders the text layer.
-     * @param {number} timeout (optional) if specified, the rendering waits
-     *   for specified amount of ms.
-     */
-    render: function TextLayerBuilder_render(timeout) {
-      if (!this.divContentDone || this.renderingDone) {
-        return;
-      }
+    setupRenderLayoutTimer:
+        function TextLayerBuilder_setupRenderLayoutTimer() {
+      // Schedule renderLayout() if the user has been scrolling,
+      // otherwise run it right away.
+      var self = this;
+      var lastScroll = (this.lastScrollSource === null ?
+                        0 : this.lastScrollSource.lastScroll);
 
-      if (this.renderTimer) {
-        clearTimeout(this.renderTimer);
-        this.renderTimer = null;
-      }
-
-      if (!timeout) { // Render right away
+      if (Date.now() - lastScroll > RENDER_DELAY) { // Render right away
         this.renderLayer();
       } else { // Schedule
-        var self = this;
+        if (this.renderTimer) {
+          clearTimeout(this.renderTimer);
+        }
         this.renderTimer = setTimeout(function() {
-          self.renderLayer();
-          self.renderTimer = null;
-        }, timeout);
+          self.setupRenderLayoutTimer();
+        }, RENDER_DELAY);
       }
     },
 
@@ -202,28 +192,23 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
       // We don't bother scaling single-char text divs, because it has very
       // little effect on text highlighting. This makes scrolling on docs with
       // lots of such divs a lot faster.
-      if(textDiv.textContent.length > 1) {
-          textDiv.dataset.canvasWidth =  style.vertical ?
-                    geom.height * this.viewport.scale:
-                    geom.width * this.viewport.scale;
+      if (textDiv.textContent.length > 1) {
+        if (style.vertical) {
+          textDiv.dataset.canvasWidth = geom.height * this.viewport.scale;
+        } else {
+          textDiv.dataset.canvasWidth = geom.width * this.viewport.scale;
+        }
       }
       return textDiv;
     },
 
     setTextContent: function TextLayerBuilder_setTextContent(textContent) {
-      // This function will add the text divs and append them to the DOM.
-      // It does two things that are computationally expensive:
-      //    1 - Finds the nearest neighbour of each text element, so we can add
-      //        padding around the element to improve selection experience.
-      //    2 - Reorders the DOM elements in the stream so they are more closely
-      //        in order of appearance in the PDF (also improving select).
       var debug = false;
       this.textContent = textContent;
 
       var textItems = textContent.items;
       var textDivs = [];
-      var len = textItems.length;
-      for (var it = 0; it < len; it++) {
+      for (var it = 0, len = textItems.length; it < len; it++) {
         textDivs.push(this.appendText(textItems[it], textContent.styles));
       }
       var N = Number;
@@ -236,9 +221,6 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
       
       var page_width = this.textLayerDiv.offsetWidth;
       /**
-       * Returns true if an element and the element directly to the right could
-       * be two separate columns in a text column.
-       *
        * @d     the div that we're checking.
        * @right structure telling us the div to the right.
        * @bottom structure telling us the div to the bottom.
@@ -248,8 +230,8 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
        *         layout if it's not a column in order to improve selectability.
        **/
       function could_be_column(d, right, bottom) {
-        if(right.d < 1.25*N(d.dataset.width)/d.innerHTML.length) {
-            // If the space to the right less than a char length, not a column.
+        if(right.d < page_width/50) {
+            // If the space to the right is tiny, then it's not a column.
             return false;
         }
         if(N(d.dataset.width) > page_width/2) {
@@ -257,92 +239,56 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
             return false;
         }
         var divr = textDivs[right.j];
-        if(right.d < 1.25*N(divr.dataset.width)/divr.innerHTML.length) {
-            // If the space to the right less than a char length, not a column.
-            return false;
-        }
         if(N(divr.dataset.width) > page_width/2) {
             // Can't be true if the right is so wide.
             return false;
         }
         // If the horizontal space between d and divr is much smaller than the
         // vertical space between the next legitimate line.
-        if(bottom.j !== null && right.d < bottom.d &&
-                        bottom.d < N(d.dataset.height)) {
+        if(bottom && right.d < bottom.d && bottom.d < N(d.dataset.height)) {
             return false;
         }
         // Whitespace should not connect columns and won't matter if it does.
         if(d.dataset.isWhitespace || divr.dataset.isWhitespace) {
             return false;
         }
+        // If there is any horizontal overlap, then not a column.
+        if(overlapBy(divi.dataset.left, divr.dataset.left, divi_right,
+                        N(divr.dataset.width) + N(divr.dataset.left), 0)) {
+            return false;
+        }
         
         // We cannot rule out that this is a text column, return true.
         return true;
       }
-      function could_be_next_line(d, bottom) {
-        // Return true if bottom could be a line directly underneath d.
-        if(bottom.j === null) {
-            return false;
-        }
-        // They have to be vertically close
-        if(bottom.d > N(d.dataset.height)) {
-            return false;
-        }
-        // They must horizontally encapsulate each other.
-        var divb = textDivs[bottom.j];
-        if(!overlapBy(d.dataset.left, divb.dataset.left,
-                        N(d.dataset.left) + N(d.dataset.width),
-                        N(divb.dataset.left) + N(divb.dataset.width), 0.99)) {
-            return false;
-        }
-        return true;
-      }
       
-      // The first item has a big impact on the flow, so track it.
-      var top_left = { j : null, d : 1e6 };
       // Set each element's padding to run to the nearest right and bottom 
       // element. The padding ensures that text selection works.
-      for (var i = 0; i < len; i++) {
+      for (var i = 0, leni = textDivs.length; i < leni; i++) {
         // TODO: This is an O(N^2) algorithm. There are others out there.
         // See generally http://en.wikipedia.org/wiki/Nearest_neighbor_search
         var divi = textDivs[i];
-        var divi_left = N(divi.dataset.left);
-        var divi_top = N(divi.dataset.top);
-        var divi_right = divi_left + N(divi.dataset.width);
-        var divi_bottom = divi_top + N(divi.dataset.height);
-        
-        // Keep track of the top-left most item.
-        var tl_d = Math.pow(divi_left, 2) + Math.pow(divi_top, 2);
-        if(top_left.j === null || tl_d < top_left.d) {
-            top_left.j = i;
-            top_left.d = tl_d;
-        }
-        
+        var divi_right = N(divi.dataset.left) + N(divi.dataset.width);
+        var divi_bottom = N(divi.dataset.top) + N(divi.dataset.height);
         // Keep track of the closest right and bottom elements
         var right = { j : null, d : 1e6 };
         var bottom = { j : null, d : 1e6 };
-        var bottom_nolap = { j : null, d : 1e6 };
         // Allow elements overlap by a half pixel w/o being behind the object.
-        var e = 1.5*this.viewport.scale;
-        if(debug) {
-            console.log(divi.innerHTML);
-        }
-        for (var j = 0; j < len; j++) {
+        var e = 0.5*this.viewport.scale;
+        console.log(divi.innerHTML);
+        for (var j = 0, lenj = textDivs.length; j < lenj; j++) {
             if(i === j) {
                 continue;
             }
             var divj = textDivs[j];
-            var divj_left = N(divj.dataset.left);
-            var divj_top = N(divj.dataset.top);
-            
-            // Consider divj if it's on the same line.
+            // Consider divj if it's on the same line. 
             // First make sure it's ahead.
-            if(divi_right <= e + divj_left && (
+            if(divi_right <= e + N(divj.dataset.left) && (
                 // Vertical intersection
-                overlapBy(divi_top, divj_top, divi_bottom,
-                          divj_top + N(divj.dataset.height), 0.6)
+                overlapBy(divi.dataset.top, divj.dataset.top, divi_bottom,
+                            N(divj.dataset.top) + N(divj.dataset.height), 0.5)
             )) {
-                var dright = divj_left - divi_right;
+                var dright = N(divj.dataset.left) - divi_right;
                 if(debug) {
                     console.log('   H: ' + divj.innerHTML + ' --> ' + dright);
                 }
@@ -353,27 +299,23 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
                 }
             }
             
-            // Consider divj if its below divi.
-            if(divi_bottom <= e + divj_top) {
-                // Get the distance below.
-                var dbottom = divj_top - divi_bottom;
+            // Consider divj if its on an intersecting column.
+            if(divi_bottom <= e + Number(divj.dataset.top) && (
                 // Horizontal intersection
-                if(overlapBy(divi_left, divj_left, divi_right,
-                        divj_left + N(divj.dataset.width), 0)) {
-                    // Distance from bottom to top
-                    if(debug) {
-                        console.log('   V: ' + divj.innerHTML + ' --> ' +
-                                                                    dbottom);
-                    }
-                    if(dbottom < bottom.d) {
-                        bottom.d = dbottom;
-                        bottom.j = j;
-                    }
+                (N(divi.dataset.left) <= N(divj.dataset.left) &&
+                    divi_right > N(divj.dataset.left)) || (
+                N(divi.dataset.left) >= N(divj.dataset.left) &&
+                    N(divi.dataset.left) < N(divj.dataset.left) +
+                                                        N(divj.dataset.width))
+            )) {
+                // Distance from bottom to top
+                var dbottom = Number(divj.dataset.top) - divi_bottom;
+                if(debug) {
+                    console.log('   V: ' + divj.innerHTML + ' --> ' + dbottom);
                 }
-                // Track of the closest below even if it doesn't overlap.
-                if(dbottom < bottom_nolap.d) {
-                    bottom_nolap.d = dbottom;
-                    bottom_nolap.j = j;
+                if(dbottom < bottom.d) {
+                    bottom.d = dbottom;
+                    bottom.j = j;
                 }
             }
         }
@@ -393,30 +335,16 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
                     (bottom.j ? textDivs[bottom.j].innerHTML:''));
             console.log('');
         }
-        // Save this for later.
-        divi.dataset.i = i;
         
         // Put the divs into a linked list based on their order.
-        if(divi.dataset.vertical) {
+        if(divi.dataset.vertical && bottom.j) {
             // Is there such thing as rows of vertical text? FixMe if so.
-            if(bottom.j) {
-                divi.dataset.next = bottom.j;
-            }
-        } else if(right.j) {
+            divi.dataset.next = bottom.j;
+        } else if(!divi.dataset.vertical && right.j) {
             // Check for columns.
             if(!could_be_column(divi, right, bottom)) {
                 divi.dataset.next = right.j;
-            } else if(could_be_next_line(divi, bottom)) {
-                // Save this bottom for another pass.
-                divi.dataset.saved_bottom = bottom.j;
-            } else {
-                // Not sure of a safe way to find the next line.
             }
-        } else if(could_be_next_line(divi, bottom)) {
-            divi.dataset.saved_bottom = bottom.j;
-        } else if(could_be_next_line(divi, bottom_nolap)) {
-            // I am not sure this is safe
-            divi.dataset.saved_bottom = bottom_nolap.j;
         }
         // Make the reverse linked list.
         if(divi.dataset.next) {
@@ -424,56 +352,21 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
         }
       }
       
-      // Do another pass through the elements. This isn't O(N^2) thankfully.
-      for (var i2 = 0; i2 < len; i2++) {
-        var divi2 = textDivs[i2];
-        if(divi2.dataset.next) {
-            continue;
-        }
-        if(!divi2.dataset.saved_bottom) {
-            continue;
-        }
-        var bottom_j = N(divi2.dataset.saved_bottom);
-        var divb2 = textDivs[bottom_j];
-        // We no longer need to hold on to this
-        delete divi2.dataset.saved_bottom;
-        // Get the first element in the following line.
-        var firstb = divb2;
-        while(firstb.dataset.prev) {
-            // Move backwards
-            var prevB = textDivs[N(firstb.dataset.prev)];
-            // Make sure they overlap vertically
-            if(!overlapBy(divb2.dataset.top, prevB.dataset.top,
-                    N(divb2.dataset.top) + N(divb2.dataset.height),
-                    N(prevB.dataset.top) + N(prevB.dataset.height), 0.8)) {
-                // No overlap
-                break;
-            }
-            firstb = prevB;
-        }
-        // If it's already linked up, then don't overwrite.
-        if(!firstb.dataset.prev) {
-            divi2.dataset.next = firstb.dataset.i;
-            firstb.dataset.prev = i2;
-        }
-      }
-      
       // Final pass, we 
       var added = {};
-      var orderedDivs = this.textDivs;
-      function add_item_list(a) {
+      for (var a = 0, lena = textDivs.length; a < lena; a++) {
         if(added[a]) {
-            return false;
+            continue;
         }
         var divadd = textDivs[a];
         if(divadd.dataset.prev) {
             // Do not process this text element yet, it is linked to by 
             // another text element.
             delete divadd.dataset.prev;
-            return;
+            continue;
         }
         
-        orderedDivs.push(divadd);
+        this.textDivs.push(divadd);
         added[a] = true;
         while(typeof(divadd.dataset.next) !== 'undefined') {
             var next = N(divadd.dataset.next);
@@ -482,18 +375,13 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
                 break;
             }
             divadd = textDivs[next];
-            orderedDivs.push(divadd);
+            this.textDivs.push(divadd);
             added[next] = true;
         }
       }
-      if(top_left.j) {
-        add_item_list(top_left.j);
-      }
-      for (var a = 0; a < len; a++) {
-        add_item_list(a);
-      }
       
       this.divContentDone = true;
+      this.setupRenderLayoutTimer();
     },
 
     convertMatches: function TextLayerBuilder_convertMatches(matches) {
@@ -555,9 +443,8 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
       var bidiTexts = this.textContent.items;
       var textDivs = this.textDivs;
       var prevEnd = null;
-      var pageIdx = this.pageIdx;
       var isSelectedPage = (this.findController === null ?
-        false : (pageIdx === this.findController.selected.pageIdx));
+        false : (this.pageIdx === this.findController.selected.pageIdx));
       var selectedMatchIdx = (this.findController === null ?
                               -1 : this.findController.selected.matchIdx);
       var highlightAll = (this.findController === null ?
@@ -603,9 +490,10 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
         var isSelected = (isSelectedPage && i === selectedMatchIdx);
         var highlightSuffix = (isSelected ? ' selected' : '');
 
-        if (this.findController) {
-          this.findController.updateMatchPosition(pageIdx, i, textDivs,
-                                                  begin.divIdx, end.divIdx);
+        if (isSelected && !this.isViewerInPresentationMode) {
+          scrollIntoView(textDivs[begin.divIdx],
+                         { top: FIND_SCROLL_OFFSET_TOP,
+                           left: FIND_SCROLL_OFFSET_LEFT });
         }
 
         // Match inside new div.
@@ -676,24 +564,3 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
   };
   return TextLayerBuilder;
 })();
-
-/**
- * @constructor
- * @implements IPDFTextLayerFactory
- */
-function DefaultTextLayerFactory() {}
-DefaultTextLayerFactory.prototype = {
-  /**
-   * @param {HTMLDivElement} textLayerDiv
-   * @param {number} pageIndex
-   * @param {PageViewport} viewport
-   * @returns {TextLayerBuilder}
-   */
-  createTextLayerBuilder: function (textLayerDiv, pageIndex, viewport) {
-    return new TextLayerBuilder({
-      textLayerDiv: textLayerDiv,
-      pageIndex: pageIndex,
-      viewport: viewport
-    });
-  }
-};
