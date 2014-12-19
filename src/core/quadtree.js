@@ -28,13 +28,12 @@
 
 'use strict';
 
-/**
+/****************** QuadTree ****************
+*
 * A QuadTree implementation in JavaScript, a 2d spatial subdivision algorithm.
 * @module QuadTree
 **/
-(function (window) {
-  /****************** QuadTree ****************/
-
+var QuadTree = (function QuadTreeClosure() {
   /**
   * QuadTree data structure.
   * @class QuadTree
@@ -333,7 +332,4 @@
     }
     this.nodes.length = 0;
   };
-
-  window.QuadTree = QuadTree;
-
-}(window));
+});
