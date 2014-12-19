@@ -248,7 +248,9 @@ var Page = (function PageClosure() {
           var bounds = {y:mbox[0], x:mbox[1],
                         width:mbox[2], height:mbox[3]};
           var layout = new TextLayoutEvaluator();
-          return layout.calculateTextFlow(bounds, data.items, data.styles);
+          // The following will mutate data.items adding supplemental info.
+          layout.calculateTextFlow(bounds, data.items, data.styles);
+          return data;
         });
       });
     },
