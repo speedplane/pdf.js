@@ -18,12 +18,8 @@
            error, ErrorFont, Font, FONT_IDENTITY_MATRIX, fontCharsToUnicode,
            FontFlags, ImageKind, info, isArray, isCmd, isDict, isEOF, isName,
            isNum, isStream, isString, JpegStream, Lexer, Metrics,
-           MurmurHash3_64, Name, Parser, Pattern, PDFImage, PDFJS, serifFonts,
-           stdFontMap, symbolsFonts, getTilingPatternIR, warn, Util, Promise,
-           RefSetCache, isRef, TextRenderingMode, ToUnicodeMap, CMapFactory,
-           OPS, UNSUPPORTED_FEATURES, UnsupportedManager, NormalizedUnicodes,
-           IDENTITY_MATRIX, reverseIfRtl, createPromiseCapability,
-           getFontType */
+           Name, Parser, Pattern, PDFJS, warn, Util, Promise,
+           createPromiseCapability, QuadTree */
  
 'use strict';
  
@@ -31,6 +27,11 @@ var TextLayoutEvaluator = (function TextLayoutEvaluatorClosure() {
   function TextLayoutEvaluator() {
   }
  
+  var NonWhitespaceRegexp = /\S/;
+  function isAllWhitespace(str) {
+    return !NonWhitespaceRegexp.test(str);
+  }
+
   // Trying to minimize Date.now() usage and check every 100 time 
   var TIME_SLOT_DURATION_MS = 20;
   var CHECK_TIME_EVERY = 100;
@@ -52,10 +53,12 @@ var TextLayoutEvaluator = (function TextLayoutEvaluatorClosure() {
   };
   var deferred = Promise.resolve();
 
-  var TILING_PATTERN = 1, SHADING_PATTERN = 2;
-
   TextLayoutEvaluator.prototype = {
-  
+    overlapBy : function (min1, min2, max1, max2, by) {
+        var d = Math.min(max1,max2) - Math.max(min1,min2);
+        return d > (max1-min1) * by || d > (max2-min2) * by;
+    },
+    
     /**
      * Returns true if an element and the element directly to the right could
      * be two separate columns in a text column.
@@ -112,35 +115,61 @@ var TextLayoutEvaluator = (function TextLayoutEvaluatorClosure() {
       }
       // They must horizontally encapsulate each other.
       var divb = textDivs[bottom.j];
-      if(!overlapBy(d.left, divb.left,
+      if(!this.overlapBy(d.left, divb.left,
                       d.left + d.width,
                       divb.left + divb.width, 0.99)) {
           return false;
       }
       return true;
     },
+    
+    addToQuadTree: function(o, i, styles) {
+      var style = styles[o.fontName];
+      if (isAllWhitespace(o.str)) {
+        // Whitespace elements aren't visible, but they're used for copy/paste.
+        o.isWhitespace = true;
+      }
+      var tx = o.transform;
+      
+      var angle = Math.atan2(tx[1], tx[0]);
+      if (style.vertical) {
+        angle += Math.PI / 2;
+      }
+      var fontHeight = Math.sqrt((tx[2] * tx[2]) + (tx[3] * tx[3]));
+      var fontAscent = fontHeight;
+      if (style.ascent) {
+        fontAscent = style.ascent * fontAscent;
+      } else if (style.descent) {
+        fontAscent = (1 + style.descent) * fontAscent;
+      }
 
-    calculateTextFlow: function (objs, styles) {
+      if (angle === 0) {
+        o.x = tx[4];
+        o.y = tx[5] - fontAscent;
+      } else {
+        o.x = tx[4] + (fontAscent * Math.sin(angle));
+        o.y = tx[5] - (fontAscent * Math.cos(angle));
+      }
+      o.id = i; // Used to uniquely identify object.
+      this.quadtree.insert(o);
+    },
+    
+    calculateTextFlow: function (bounds, objs, styles) {
+      var timeSlotManager = new TimeSlotManager();
       var self = this;
-
+      self.quadtree = new QuadTree(bounds, 4, 16);
+      for (var i = 0, len = objs.length; i < len; i++) {
+        self.addToQuadTree(objs[i], i, styles);
+      }
+      self.quadtree.retrieve_lr({x:0, y:0, height:1000}, function(it) { 
+            console.log(it.str); 
+      });
       return new Promise(function next(resolve, reject) {
         timeSlotManager.reset();
-        var stop, operation = {}, args = [];
+        var stop;
         while (!(stop = timeSlotManager.check())) {
-          // The arguments parsed by read() are not used beyond this loop, so
-          // we can reuse the same array on every iteration, thus avoiding
-          // unnecessary allocations.
-          args.length = 0;
-          operation.args = args;
-          if (!(preprocessor.read(operation))) {
-            break;
-          }
-          var fn = operation.fn;
-          args = operation.args;
-        textState.fontSize = args[1];
-            return handleSetFont(args[0].name).then(function() {
-              next(resolve, reject);
-            }, reject);
+          
+          
         
         } // while
         if (stop) {
@@ -153,4 +182,5 @@ var TextLayoutEvaluator = (function TextLayoutEvaluatorClosure() {
       });
     }
   };
-});
+  return TextLayoutEvaluator;
+})();
