@@ -28,15 +28,15 @@ describe('quadtree', function() {
       expect(quad.retrieve({x:55,y:55,width:1,height:1})).toEqual(items);
       
       // Check all quadrants that it's not
-      expect(quad.retrieve({x:1,y:1,width:.5,height:.5})).toEqual([]);
-      expect(quad.retrieve({x:1,y:99,width:.5,height:.5})).toEqual([]);
-      expect(quad.retrieve({x:99,y:1,width:.5,height:.5})).toEqual([]);
-      expect(quad.retrieve({x:99,y:99,width:.5,height:.5})).toEqual([]);
+      expect(quad.retrieve({x:1,y:1,width:0.5,height:0.5})).toEqual([]);
+      expect(quad.retrieve({x:1,y:99,width:0.5,height:0.5})).toEqual([]);
+      expect(quad.retrieve({x:99,y:1,width:0.5,height:0.5})).toEqual([]);
+      expect(quad.retrieve({x:99,y:99,width:0.5,height:0.5})).toEqual([]);
       // Check on the sides
-      expect(quad.retrieve({x:50,y:1,width:.5,height:.5})).toEqual([]);
-      expect(quad.retrieve({x:50,y:99,width:.5,height:.5})).toEqual([]);
-      expect(quad.retrieve({x:1,y:50,width:.5,height:.5})).toEqual([]);
-      expect(quad.retrieve({x:99,y:50,width:.5,height:.5})).toEqual([]);
+      expect(quad.retrieve({x:50,y:1,width:0.5,height:0.5})).toEqual([]);
+      expect(quad.retrieve({x:50,y:99,width:0.5,height:0.5})).toEqual([]);
+      expect(quad.retrieve({x:1,y:50,width:0.5,height:0.5})).toEqual([]);
+      expect(quad.retrieve({x:99,y:50,width:0.5,height:0.5})).toEqual([]);
       
       // Check the boundaries - Just in boundaries
       expect(quad.retrieve({x:2,y:2,width:5,height:5})).toEqual(items);
@@ -83,15 +83,15 @@ describe('quadtree', function() {
       expect(quad.retrieve({x:55,y:55,width:1,height:1})).toEqual(items);
       
       // Check all quadrants that it's not
-      expect(quad.retrieve({x:1,y:1,width:.5,height:.5})).toEqual([]);
-      expect(quad.retrieve({x:1,y:99,width:.5,height:.5})).toEqual([]);
-      expect(quad.retrieve({x:99,y:1,width:.5,height:.5})).toEqual([]);
-      expect(quad.retrieve({x:99,y:99,width:.5,height:.5})).toEqual([]);
+      expect(quad.retrieve({x:1,y:1,width:0.5,height:0.5})).toEqual([]);
+      expect(quad.retrieve({x:1,y:99,width:0.5,height:0.5})).toEqual([]);
+      expect(quad.retrieve({x:99,y:1,width:0.5,height:0.5})).toEqual([]);
+      expect(quad.retrieve({x:99,y:99,width:0.5,height:0.5})).toEqual([]);
       // Check on the sides
-      expect(quad.retrieve({x:50,y:1,width:.5,height:.5})).toEqual([]);
-      expect(quad.retrieve({x:50,y:99,width:.5,height:.5})).toEqual([]);
-      expect(quad.retrieve({x:1,y:50,width:.5,height:.5})).toEqual([]);
-      expect(quad.retrieve({x:99,y:50,width:.5,height:.5})).toEqual([]);
+      expect(quad.retrieve({x:50,y:1,width:0.5,height:0.5})).toEqual([]);
+      expect(quad.retrieve({x:50,y:99,width:0.5,height:0.5})).toEqual([]);
+      expect(quad.retrieve({x:1,y:50,width:0.5,height:0.5})).toEqual([]);
+      expect(quad.retrieve({x:99,y:50,width:0.5,height:0.5})).toEqual([]);
       
       // Check the boundaries - Just in boundaries
       expect(quad.retrieve({x:2,y:2,width:5,height:5})).toEqual(items);
@@ -131,56 +131,56 @@ describe('quadtree', function() {
     
     function test_iterate_x_tests() {
       // Runs tests on a quad in the x direction. 
-      var out = []
+      var out = [];
       quad.retrieve_xinc(0,49,1,function(c) { out.push(c); });
       expect(out).toEqual(items);
-      out = []
+      out = [];
       quad.retrieve_xinc(0,49,5,function(c) { out.push(c); });
       expect(out).toEqual(items);
       
       // Skip the first
-      out = []
+      out = [];
       quad.retrieve_xinc(4,49,1,function(c) { out.push(c); });
       expect(out).toEqual(items.slice(1));
       // Skip all
-      out = []
+      out = [];
       quad.retrieve_xinc(14,49,1,function(c) { out.push(c); });
       expect(out).toEqual([]);
       // Get the edges
-      out = []
+      out = [];
       quad.retrieve_xinc(0,48,1,function(c) { out.push(c); });
       expect(out).toEqual([]);
-      out = []
+      out = [];
       quad.retrieve_xinc(0,51,1,function(c) { out.push(c); });
       expect(out).toEqual([]);
       
       // Now test the same in reverse
       items.reverse();
       
-      out = []
+      out = [];
       quad.retrieve_xdec(50,49,1,function(c) { out.push(c); });
       expect(out).toEqual(items);
-      out = []
+      out = [];
       quad.retrieve_xdec(13,49,1,function(c) { out.push(c); });
       expect(out).toEqual(items);
       // Skip the first
-      out = []
+      out = [];
       quad.retrieve_xdec(12,49,1,function(c) { out.push(c); });
       expect(out).toEqual(items.slice(1));
-      out = []
+      out = [];
       quad.retrieve_xdec(9,49,1,function(c) { out.push(c); });
       expect(out).toEqual(items.slice(2));
       // Get the edges
-      out = []
+      out = [];
       quad.retrieve_xdec(8,49,1,function(c) { out.push(c); });
       expect(out).toEqual(items.slice(3));
-      out = []
+      out = [];
       quad.retrieve_xdec(6,49,1,function(c) { out.push(c); });
       expect(out).toEqual(items.slice(4));
-      out = []
+      out = [];
       quad.retrieve_xdec(4,49,1,function(c) { out.push(c); });
       expect(out).toEqual(items.slice(5));
-      out = []
+      out = [];
       quad.retrieve_xdec(2,49,1,function(c) { out.push(c); });
       expect(out).toEqual([]);
       
@@ -193,7 +193,7 @@ describe('quadtree', function() {
     // Add a number of objects
     for(var i=0; i<100; i += 5) {
       quad.insert({x:i, y:i/20, width:1, height:1});
-    }    
+    }
     // Adding the objects above should not have changed the test
     it('iterate x with objs', test_iterate_x_tests);
     for(i=0; i<100; i += 5) {
@@ -218,56 +218,56 @@ describe('quadtree', function() {
     
     function test_iterate_y_tests() {
       // Runs tests on a quad in the x direction. 
-      var out = []
+      var out = [];
       quad.retrieve_yinc(49,0,1,function(c) { out.push(c); });
       expect(out).toEqual(items);
-      out = []
+      out = [];
       quad.retrieve_yinc(49,0,5,function(c) { out.push(c); });
       expect(out).toEqual(items);
       
       // Skip the first
-      out = []
+      out = [];
       quad.retrieve_yinc(49,4,1,function(c) { out.push(c); });
       expect(out).toEqual(items.slice(1));
       // Skip all
-      out = []
+      out = [];
       quad.retrieve_yinc(49,14,1,function(c) { out.push(c); });
       expect(out).toEqual([]);
       // Get the edges
-      out = []
+      out = [];
       quad.retrieve_yinc(48,0,1,function(c) { out.push(c); });
       expect(out).toEqual([]);
-      out = []
+      out = [];
       quad.retrieve_yinc(51,0,1,function(c) { out.push(c); });
       expect(out).toEqual([]);
       
       // Now test the same in reverse
       items.reverse();
       
-      out = []
+      out = [];
       quad.retrieve_ydec(49,50,1,function(c) { out.push(c); });
       expect(out).toEqual(items);
-      out = []
+      out = [];
       quad.retrieve_ydec(49,13,1,function(c) { out.push(c); });
       expect(out).toEqual(items);
       // Skip the first
-      out = []
+      out = [];
       quad.retrieve_ydec(49,12,1,function(c) { out.push(c); });
       expect(out).toEqual(items.slice(1));
-      out = []
+      out = [];
       quad.retrieve_ydec(49,9,1,function(c) { out.push(c); });
       expect(out).toEqual(items.slice(2));
       // Get the edges
-      out = []
+      out = [];
       quad.retrieve_ydec(49,8,1,function(c) { out.push(c); });
       expect(out).toEqual(items.slice(3));
-      out = []
+      out = [];
       quad.retrieve_ydec(49,6,1,function(c) { out.push(c); });
       expect(out).toEqual(items.slice(4));
-      out = []
+      out = [];
       quad.retrieve_ydec(49,4,1,function(c) { out.push(c); });
       expect(out).toEqual(items.slice(5));
-      out = []
+      out = [];
       quad.retrieve_ydec(49,2,1,function(c) { out.push(c); });
       expect(out).toEqual([]);
       
@@ -280,7 +280,7 @@ describe('quadtree', function() {
     // Add a number of objects
     for(var i=0; i<100; i += 5) {
       quad.insert({x:i/20, y:i, width:1, height:1});
-    }    
+    }
     // Adding the objects above should not have changed the test
     it('iterate x with objs', test_iterate_y_tests);
     for(i=0; i<100; i += 5) {
