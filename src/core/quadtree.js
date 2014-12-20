@@ -99,7 +99,9 @@ var QuadTree = (function QuadTreeClosure() {
   QuadTree.prototype.retrieve_xdec = function (x,y,height, func) {
     var x0 = this.root.bounds.x;
     var it = {x:x0, y:y, height:height, width:x-x0};
-    var sorter = function(a, b) {return a.x < b.x ? 1: (a.x>b.x?-1:0);};
+    var sorter = function(a, b) {
+      var ax=a.x+a.width, bx=b.x+b.width;
+      return ax < bx ? 1: (ax>bx?-1:0);};
     var side1 = [QNode.TOP_RIGHT, QNode.BOTTOM_RIGHT];
     var side2 = [QNode.TOP_LEFT, QNode.BOTTOM_LEFT];
     return this.root.retrieve_iterate(it, func, sorter, side1, side2, {});
@@ -124,7 +126,10 @@ var QuadTree = (function QuadTreeClosure() {
     // When decreasing, we're given bottom left corner, convert to top right.
     var y0     = this.root.bounds.y;  // Calculate the top-left corner
     var it = {x:x, y:y0, width:width, height:y-y0};
-    var sorter = function(a, b) { return a.y < b.y ? 1: (a.y>b.y?-1:0); };
+    var sorter = function(a, b) { 
+        var ay=a.y+a.height, by=b.y+b.height;
+        return ay < by ? 1: (ay>by?-1:0); 
+    };
     var side1 = [QNode.TOP_LEFT,    QNode.TOP_RIGHT];
     var side2 = [QNode.BOTTOM_LEFT, QNode.BOTTOM_RIGHT];
     return this.root.retrieve_iterate(it, func, sorter, side1, side2, {});
@@ -330,9 +335,6 @@ var QuadTree = (function QuadTreeClosure() {
    */
   QNode.prototype.retrieve_iterate = function (item, func,
                               sorter, side1, side2, deduper) {
-    // Sort right to left.
-    var sort_lr = function(a, b) { return a.x < b.x ? -1: (a.x>b.x?1:0); };
-    
     if (this.nodes) {
       var indices = this._findIndices(item);
       

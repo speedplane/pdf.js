@@ -287,5 +287,40 @@ describe('quadtree', function() {
       quad.insert({x:100-i/20, y:100-i, width:1, height:1});
     }
     it('iterate x with more objs', test_iterate_y_tests);
+    
+  });
+  describe('Quadtree Var Size Iteration', function () {
+    it('X Direc', function () {
+      var quad = new QuadTree(bounds);
+      var items = [
+        {y:1,x:10, width:30, height:2, id:0},
+        {y:1,x:2, width:80, height:2, id:1},
+      ];
+      quad.insert(items);
+      quad.retrieve_xinc(0,0,50,function(c) { 
+        expect(c.id).toEqual(1);
+        return false;
+      });
+      quad.retrieve_xdec(100,0,50,function(c) { 
+        expect(c.id).toEqual(1);
+        return false;
+      });
+    });
+    it('Y Direc', function () {
+      var quad = new QuadTree(bounds);
+      var items = [
+        {x:1,y:10, width:2, height:30, id:0},
+        {x:1,y:2, width:2, height:80, id:1},
+      ];
+      quad.insert(items);
+      quad.retrieve_yinc(0,0,50,function(c) { 
+        expect(c.id).toEqual(1);
+        return false;
+      });
+      quad.retrieve_ydec(0,100,50,function(c) { 
+        expect(c.id).toEqual(1);
+        return false;
+      });
+    });
   });
 });
