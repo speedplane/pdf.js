@@ -320,19 +320,24 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
                     // Take up the rest of the horizontal line on the page
                     (this.textLayerDiv.offsetWidth - right) + 'px';
         divi.style.paddingBottom = geom_b !== null ?
-                    (geom_b.top - bottom) + 'px':
+                    (geom_b.div.top - bottom) + 'px':
                     // Take up the rest of the vertical space on the page
                     (this.textLayerDiv.offsetHeight - bottom) + 'px';
         if(debug) {
-            divi.dataset.i = i;
-            console.log(geom.id + ": " + geom.str);
-            if(geom_r !== null) {
-              console.log('  H ' + geom_r.id + ': ' + geom_r.str);
-            }
-            if(geom_b !== null) {
-              console.log('  V ' + geom_b.id + ': ' + geom_b.str);
-            }
-            console.log('');
+          // Set fields in the dataset to make debugging easier
+          divi.dataset.i = i;
+          divi.dataset.width = geom.div.width;
+          divi.dataset.height = geom.div.height;
+          console.log(geom.id + ": " + geom.str);
+          if(geom_r !== null) {
+            divi.dataset.i_right = geom_r.id;
+            console.log('  H ' + geom_r.id + ': ' + geom_r.str);
+          }
+          if(geom_b !== null) {
+            divi.dataset.i_below = geom_b.id;
+            console.log('  V ' + geom_b.id + ': ' + geom_b.str);
+          }
+          console.log('');
         }
         
         // Put the divs into a linked list based on their order.
