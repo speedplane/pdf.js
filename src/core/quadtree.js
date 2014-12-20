@@ -89,28 +89,45 @@ var QuadTree = (function QuadTreeClosure() {
    * Iterate through the items from the left to the right as specified by the 
    * bounding box given by item: x, y, and height.
    */
-  QuadTree.prototype.retrieve_xinc = function (item, func) {
-    var it = {x:item.x, y:item.y, height:item.height, width:QNode.INFDIST};
-    return this.root.retrieve_xinc(it, func, {});
+  QuadTree.prototype.retrieve_xinc = function (x,y,height, func) {
+    var it = {x:x, y:y, height:height, width:this.root.bounds.width-x};
+    var sorter = function(a, b) {return a.x < b.x ? -1: (a.x>b.x?1:0);};
+    var side1 = [QNode.TOP_LEFT, QNode.BOTTOM_LEFT];
+    var side2 = [QNode.TOP_RIGHT, QNode.BOTTOM_RIGHT];
+    return this.root.retrieve_iterate(it, func, sorter, side1, side2, {});
   };
+  QuadTree.prototype.retrieve_xdec = function (x,y,height, func) {
+    var x0 = this.root.bounds.x;
+    var it = {x:x0, y:y, height:height, width:x-x0};
+    var sorter = function(a, b) {return a.x < b.x ? 1: (a.x>b.x?-1:0);};
+    var side1 = [QNode.TOP_RIGHT, QNode.BOTTOM_RIGHT];
+    var side2 = [QNode.TOP_LEFT, QNode.BOTTOM_LEFT];
+    return this.root.retrieve_iterate(it, func, sorter, side1, side2, {});
+  };
+  
   /**
    * Iterate through the items from the top down as specified by the 
    * bounding box given by item: x, y, and width.
    */
-  QuadTree.prototype.retrieve_yinc = function (item, func) {
-    var it = {x:item.x, y:item.y, width:item.width, height:QNode.INFDIST};
-    return this.root.retrieve_yinc(it, func, {});
+  QuadTree.prototype.retrieve_yinc = function (x,y,width, func) {
+    var it = {x:x, y:y, width:width, height:this.root.bounds.height-y};
+    var sorter = function(a, b) { return a.y < b.y ? -1: (a.y>b.y?1:0); };
+    var side1 = [QNode.BOTTOM_LEFT, QNode.BOTTOM_RIGHT];
+    var side2 = [QNode.TOP_LEFT,    QNode.TOP_RIGHT];
+    return this.root.retrieve_iterate(it, func, sorter, side1, side2, {});
   };
   /**
    * Iterate through the items from the down to up as specified by the 
    * lower left corner of the bounding box given by item: x, y, and width.
    */
-  QuadTree.prototype.retrieve_ydec = function (item, func) {
+  QuadTree.prototype.retrieve_ydec = function (x,y,width, func) {
     // When decreasing, we're given bottom left corner, convert to top right.
     var y0     = this.root.bounds.y;  // Calculate the top-left corner
-    var height = item.y-y0;            // And the height.
-    var it = {x:item.x, y:y0, width:item.width, height:height};
-    return this.root.retrieve_ydec(it, func, {});
+    var it = {x:x, y:y0, width:width, height:y-y0};
+    var sorter = function(a, b) { return a.y < b.y ? 1: (a.y>b.y?-1:0); };
+    var side1 = [QNode.TOP_LEFT,    QNode.TOP_RIGHT];
+    var side2 = [QNode.BOTTOM_LEFT, QNode.BOTTOM_RIGHT];
+    return this.root.retrieve_iterate(it, func, sorter, side1, side2, {});
   };
   
   function QNode(bounds, depth, maxDepth, maxChildren) {
@@ -127,9 +144,6 @@ var QuadTree = (function QuadTreeClosure() {
   QNode.TOP_RIGHT    = 1;
   QNode.BOTTOM_LEFT  = 2;
   QNode.BOTTOM_RIGHT = 3;
-  
-  // Used to indicate infinite width or height.
-  QNode.INFDIST      = -1;
   
   // Collect and concatenate items retrieved so we don't create many new Array 
   // instances. Copy the array when returned from QuadTree.retrieve
@@ -200,7 +214,7 @@ var QuadTree = (function QuadTreeClosure() {
       var right;
       if (item.x < bx) {
         out[QNode.TOP_LEFT] = true;
-        if (item.width === QNode.INFDIST || item.x + item.width >= bx) {
+        if (item.x + item.width >= bx) {
           out[QNode.TOP_RIGHT] = true;
         }
       } else {
@@ -210,10 +224,10 @@ var QuadTree = (function QuadTreeClosure() {
       below = true;
     }
     
-    if (below || item.height === QNode.INFDIST || item.y + item.height >= by) {
+    if (below || item.y + item.height >= by) {
       if(item.x < bx) {
         out[QNode.BOTTOM_LEFT] = true;
-        if(item.width === QNode.INFDIST || item.x + item.width >= bx) {
+        if(item.x + item.width >= bx) {
           out[QNode.BOTTOM_RIGHT] = true;
         }
       } else {
@@ -285,10 +299,9 @@ var QuadTree = (function QuadTreeClosure() {
     var it_y2 = item.y + item.height;
     for(var ci=0; ci < children_len; ci++) {
       var c = this.children[ci];
-      if(   item.x <= c.x + c.width &&
-            item.y <= c.y + c.height &&
-            (c.x <= it_x2 || item.width === QNode.INFDIST) &&
-            (c.y <= it_y2 || item.height === QNode.INFDIST) &&
+      if(   item.x < c.x + c.width &&
+            item.y < c.y + c.height &&
+            it_x2 > c.x && it_y2 > c.y &&
             !(c.id in deduper)) {
           deduper[c.id] = true;
           ar.push(c);
@@ -315,52 +328,57 @@ var QuadTree = (function QuadTreeClosure() {
    * iteration, but it is usually much faster than that when the height is not
    * very large and the likelihood of crossing a boundary is relatively small.
    */
-  QNode.prototype.retrieve_xinc = function (item, func, deduper) {
+  QNode.prototype.retrieve_iterate = function (item, func, 
+                              sorter, side1, side2, deduper) {
     // Sort right to left.
     var sort_lr = function(a, b) { return a.x < b.x ? -1: (a.x>b.x?1:0); };
     
     if (this.nodes) {
       var indices = this._findIndices(item);
       
-      // Handle the left side.
-      if(indices[QNode.TOP_LEFT] && indices[QNode.BOTTOM_LEFT]) {
+      // Handle the first side of the quandrants.
+      if(indices[side1[0]] && indices[side1[1]]) {
         // We must retrieve all, sort them, and return one by one. 
         // This can be improved by not looking at the entire width at once.
         var sub_l = [];
-        this.nodes[QNode.TOP_LEFT].retrieve(item, sub_l, deduper);
-        this.nodes[QNode.BOTTOM_LEFT].retrieve(item, sub_l, deduper);
-        if(!this.sort_and_callback(sub_l, func, sort_lr)) {
+        this.nodes[side1[0]].retrieve(item, sub_l, deduper);
+        this.nodes[side1[1]].retrieve(item, sub_l, deduper);
+        if(!this.sort_and_callback(sub_l, func, sorter)) {
           return false;
         }
-      } else if(indices[QNode.TOP_LEFT]) {
+      } else if(indices[side1[0]]) {
         // We only need to look at one quartile.
-        if(!this.nodes[QNode.TOP_LEFT].retrieve_xinc(item, func, deduper)) {
+        if(!this.nodes[side1[0]].retrieve_iterate(item, func, 
+              sorter, side1, side2, deduper)) {
           return false;
         }
-      } else if(indices[QNode.BOTTOM_LEFT]) {
+      } else if(indices[side1[1]]) {
         // We only need to look at one quartile.
-        if(!this.nodes[QNode.BOTTOM_LEFT].retrieve_xinc(item, func, deduper)) {
+        if(!this.nodes[side1[1]].retrieve_iterate(item, func, 
+              sorter, side1, side2, deduper)) {
           return false;
         }
       }
       
-      // Handle the right side.
-      if(indices[QNode.TOP_RIGHT] && indices[QNode.BOTTOM_RIGHT]) {
+      // Handle the second side of the quadrants.
+      if(indices[side2[0]] && indices[side2[1]]) {
         // We must retrieve all, sort them, and return one by one.
         var sub_r = [];
-        this.nodes[QNode.TOP_RIGHT].retrieve(item, sub_r, deduper);
-        this.nodes[QNode.BOTTOM_RIGHT].retrieve(item, sub_r, deduper);
-        if(!this.sort_and_callback(sub_r, func, sort_lr)) {
+        this.nodes[side2[0]].retrieve(item, sub_r, deduper);
+        this.nodes[side2[1]].retrieve(item, sub_r, deduper);
+        if(!this.sort_and_callback(sub_r, func, sorter)) {
           return false;
         }
-      } else if(indices[QNode.TOP_RIGHT]) {
+      } else if(indices[side2[0]]) {
         // We only need to look at one quartile.
-        if(!this.nodes[QNode.TOP_RIGHT].retrieve_xinc(item, func, deduper)) {
+        if(!this.nodes[QNode.TOP_RIGHT].retrieve_iterate(item, func,
+              sorter, side1, side2, deduper)) {
           return false;
         }
-      } else if(indices[QNode.BOTTOM_RIGHT]) {
+      } else if(indices[side2[1]]) {
         // We only need to look at one quartile.
-        if(!this.nodes[QNode.BOTTOM_RIGHT].retrieve_xinc(item, func, deduper)) {
+        if(!this.nodes[side2[1]].retrieve_iterate(item, func,
+              sorter, side1, side2, deduper)) {
           return false;
         }
       }
@@ -368,13 +386,15 @@ var QuadTree = (function QuadTreeClosure() {
     }
     
     // Go through children.
-    this.children.sort(sort_lr);
+    this.children.sort(sorter);
     var children_len = this.children.length;
+    var it_x2 = item.x + item.width;
     var it_y2 = item.y + item.height;
     for(var ci=0; ci < children_len; ci++) {
       var c = this.children[ci];
-      if(item.x <= c.x + c.width &&
-            item.y <= c.y + c.height && c.y <= it_y2 &&
+      if(   item.x < c.x + c.width &&
+            item.y < c.y + c.height &&
+            it_x2 > c.x && it_y2 > c.y &&
             !(c.id in deduper)) {
           if(func(c) === false) {
             return false;
@@ -385,159 +405,5 @@ var QuadTree = (function QuadTreeClosure() {
     return true;
   };
   
-  QNode.prototype.retrieve_yinc = function (item, func, deduper) {
-    // Iterate over items with an increasing y value.
-    var sort_td = function(a, b) { return a.y < b.y ? -1: (a.y>b.y?1:0); };
-    
-    if (this.nodes) {
-      var indices = this._findIndices(item);
-      
-      // Handle the top.
-      if(indices[QNode.TOP_LEFT] && indices[QNode.TOP_RIGHT]) {
-        // We must retrieve all, sort them, and return one by one. 
-        // This can be improved by not looking at the entire width at once.
-        var sub_t = [];
-        this.nodes[QNode.TOP_LEFT].retrieve(item, sub_t, deduper);
-        this.nodes[QNode.TOP_RIGHT].retrieve(item, sub_t, deduper);
-        if(!this.sort_and_callback(sub_t, func, sort_td)) {
-          return false;
-        }
-      } else if(indices[QNode.TOP_LEFT]) {
-        // We only need to look at one quartile.
-        if(!this.nodes[QNode.TOP_LEFT].retrieve_yinc(item, func, deduper)) {
-          return false;
-        }
-      } else if(indices[QNode.TOP_RIGHT]) {
-        // We only need to look at one quartile.
-        if(!this.nodes[QNode.TOP_RIGHT].retrieve_yinc(item, func, deduper)) {
-          return false;
-        }
-      }
-      
-      // Handle the bottom.
-      if(indices[QNode.BOTTOM_LEFT] && indices[QNode.BOTTOM_RIGHT]) {
-        // We must retrieve all, sort them, and return one by one.
-        var sub_b = [];
-        this.nodes[QNode.BOTTOM_LEFT].retrieve(item, sub_b, deduper);
-        this.nodes[QNode.BOTTOM_RIGHT].retrieve(item, sub_b, deduper);
-        if(!this.sort_and_callback(sub_b, func, sort_td)) {
-          return false;
-        }
-      } else if(indices[QNode.BOTTOM_LEFT]) {
-        // We only need to look at one quartile.
-        if(!this.nodes[QNode.BOTTOM_LEFT].retrieve_yinc(item, func, deduper)) {
-          return false;
-        }
-      } else if(indices[QNode.BOTTOM_RIGHT]) {
-        // We only need to look at one quartile.
-        if(!this.nodes[QNode.BOTTOM_RIGHT].retrieve_yinc(item, func, deduper)) {
-          return false;
-        }
-      }
-      return true;
-    }
-    
-    // Go through children.
-    this.children.sort(sort_td);
-    var children_len = this.children.length;
-    var it_x2 = item.x + item.width;
-    for(var ci=0; ci < children_len; ci++) {
-      var c = this.children[ci];
-      if(   item.x <= c.x + c.width &&
-            item.y <= c.y + c.height &&
-            (c.x <= it_x2 || item.width === QNode.INFDIST) &&
-            !(c.id in deduper)) {
-          if(func(c) === false) {
-            return false;
-          }
-          deduper[c.id] = true;
-      }
-    }
-    
-    return true;
-  };
-  
-  QNode.prototype.retrieve_ydec = function (item, func, deduper) {
-    // Iterate over items with an increasing y value.
-    var sort_bt = function(a, b) { return a.y < b.y ? 1: (a.y>b.y?-1:0); };
-    
-    if (this.nodes) {
-      // BE CAREFUL HERE. _findIndices assumes we are given it the top left
-      // corner, but here we are given it the bottom left corner of the rect.
-      // The height is infinite. 
-      var indices = this._findIndices(item);
-      // var  = {};
-      // If it returns just the bottom, then we should have the bottom and top.
-      // If it returns the bottom and the top, we should just have the top.
-      // If should never return just the top.
-      // If it returns nothing (for one side), we should do nothing.
-      // indices[QNode.BOTTOM_LEFT] = !tl[QNode.TOP_LEFT]  && tl[QNode.BOTTOM_LEFT];
-      // indices[QNode.BOTTOM_RIGHT]= !tl[QNode.TOP_RIGHT] && tl[QNode.BOTTOM_RIGHT];
-      // indices[QNode.TOP_LEFT]    =  tl[QNode.TOP_LEFT]  || tl[QNode.BOTTOM_LEFT];
-      // indices[QNode.TOP_RIGHT]   = tl[QNode.TOP_RIGHT] || tl[QNode.BOTTOM_RIGHT];
-      
-      if(indices[QNode.BOTTOM_LEFT] && indices[QNode.BOTTOM_RIGHT]) {
-        // We must retrieve all, sort them, and return one by one.
-        var sub_b = [];
-        this.nodes[QNode.BOTTOM_LEFT].retrieve(item, sub_b, deduper);
-        this.nodes[QNode.BOTTOM_RIGHT].retrieve(item, sub_b, deduper);
-        if(!this.sort_and_callback(sub_b, func, sort_bt)) {
-          return false;
-        }
-      } else if(indices[QNode.BOTTOM_LEFT]) {
-        // We only need to look at one quartile.
-        if(!this.nodes[QNode.BOTTOM_LEFT].retrieve_ydec(item, func, deduper)) {
-          return false;
-        }
-      } else if(indices[QNode.BOTTOM_RIGHT]) {
-        // We only need to look at one quartile.
-        if(!this.nodes[QNode.BOTTOM_RIGHT].retrieve_ydec(item, func, deduper)) {
-          return false;
-        }
-      }
-      
-      // Handle the top.
-      if(indices[QNode.TOP_LEFT] && indices[QNode.TOP_RIGHT]) {
-        // We must retrieve all, sort them, and return one by one. 
-        // This can be improved by not looking at the entire width at once.
-        var sub_t = [];
-        this.nodes[QNode.TOP_LEFT].retrieve(item, sub_t, deduper);
-        this.nodes[QNode.TOP_RIGHT].retrieve(item, sub_t, deduper);
-        if(!this.sort_and_callback(sub_t, func, sort_bt)) {
-          return false;
-        }
-      } else if(indices[QNode.TOP_LEFT]) {
-        // We only need to look at one quartile.
-        if(!this.nodes[QNode.TOP_LEFT].retrieve_ydec(item, func, deduper)) {
-          return false;
-        }
-      } else if(indices[QNode.TOP_RIGHT]) {
-        // We only need to look at one quartile.
-        if(!this.nodes[QNode.TOP_RIGHT].retrieve_ydec(item, func, deduper)) {
-          return false;
-        }
-      }
-      return true;
-    }
-    
-    // Go through children.
-    this.children.sort(sort_bt);
-    var children_len = this.children.length;
-    var it_x2 = item.x + item.width;
-    for(var ci=0; ci < children_len; ci++) {
-      var c = this.children[ci];
-      if(   item.x <= c.x + c.width &&
-            item.y <= c.y + c.height &&
-            (c.x <= it_x2 || item.width === QNode.INFDIST) &&
-            !(c.id in deduper)) {
-          if(func(c) === false) {
-            return false;
-          }
-          deduper[c.id] = true;
-      }
-    }
-    
-    return true;
-  };
   return QuadTree;
 })();
