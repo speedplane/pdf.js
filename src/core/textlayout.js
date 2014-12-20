@@ -180,7 +180,7 @@ var TextLayoutEvaluator = (function TextLayoutEvaluatorClosure() {
         }
         
         // Find the first object to the right.
-        self.quadtree.retrieve_xinc(d.x,d.y,d.height, function (dr) {
+        self.quadtree.retrieve_xinc(d.x+d.width,d.y,d.height, function (dr) {
             if(dr.id !== d.id) {
               d.right = dr.id;
               return false;
