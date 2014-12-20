@@ -186,8 +186,8 @@ var TextLayoutEvaluator = (function TextLayoutEvaluatorClosure() {
               return false;
             }
         });
-        // Find the object directly below.
-        self.quadtree.retrieve_ydec(d.x,d.y,d.width, function (db) {
+        // Find the object directly below, subtract the height to move down.
+        self.quadtree.retrieve_ydec(d.x,d.y-d.height,d.width, function (db) {
             if(db.id !== d.id) {
               d.below = db.id;
               return false;
