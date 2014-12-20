@@ -157,29 +157,43 @@ var TextLayoutEvaluator = (function TextLayoutEvaluatorClosure() {
     calculateTextFlow: function (bounds, objs, styles) {
       var timeSlotManager = new TimeSlotManager();
       var self = this;
+      
+      // Put everything into the quadtree so it's fast to look things up.
       self.quadtree = new QuadTree(bounds, 4, 16);
       for (var i = 0, len = objs.length; i < len; i++) {
         self.addToQuadTree(objs[i], i, styles);
       }
-      self.quadtree.retrieve_lr({x:0, y:0, height:1000}, function(it) { 
-            console.log(it.str); 
-      });
-      return new Promise(function next(resolve, reject) {
-        timeSlotManager.reset();
-        var stop;
-        while (!(stop = timeSlotManager.check())) {
-          
-          
+      
+      // The top item has a big impact on the flow, so track it.
+      var top_left = { j : null, d : 1e6 };
+      // Set each element's padding to run to the nearest right and bottom 
+      // element. The padding ensures that text selection works.
+      for (var i = 0; i < len; i++) {
+        var d = objs[i];
+        var d_x2 = d.x + d.width;
+        var d_y2 = d.y + d.height;
         
-        } // while
-        if (stop) {
-          deferred.then(function () {
-            next(resolve, reject);
-          });
-          return;
+        // Keep track of the top-left most item.
+        var tl_d = Math.pow(d.x, 2) + Math.pow(d.y, 2);
+        if(top_left.j === null || tl_d < top_left.d) {
+            top_left.j = i;
+            top_left.d = tl_d;
         }
-        resolve(textContent);
-      });
+        
+        // Find the first object to the right.
+        self.quadtree.retrieve_xinc({x:d_x2,y:d.y,height:d.height}, 
+          function (dr) {
+            o.right = dr.id;
+            return false;
+        });
+        // Find the object directly below.
+        self.quadtree.retrieve_yinc({x:d_x2,y:d.y,width:d.width}, 
+          function (db) {
+            o.below = db.id;
+            return false;
+        });
+      }
+      return objs;
     }
   };
   return TextLayoutEvaluator;
