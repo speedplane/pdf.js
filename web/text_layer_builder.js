@@ -138,9 +138,9 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
     appendText: function TextLayerBuilder_appendText(geom, styles) {
       var style = styles[geom.fontName];
       var textDiv = document.createElement('div');
-      if (isAllWhitespace(geom.str)) {
+      if (geom.isWhitespace || isAllWhitespace(geom.str)) {
         // Whitespace elements aren't visible, but they're used for copy/paste.
-        textDiv.dataset.isWhitespace = true;
+        geom.isWhitespace = true;
         textDiv.className += ' whitespace';
       }
       var tx = PDFJS.Util.transform(this.viewport.transform, geom.transform);
@@ -165,16 +165,21 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
         left = tx[4] + (fontAscent * Math.sin(angle));
         top = tx[5] - (fontAscent * Math.cos(angle));
       }
+      // Save info about the div in the geom for fast access.
+      geom.div = {
+        left    : left,
+        top     : top,
+        width   : geom.width * this.viewport.scale,
+        height  : geom.height * this.viewport.scale,
+        vertical: style.vertical ? true:false,
+      };
+      geom.flow = { }; // This gets added later.
+      
       textDiv.style.left = left + 'px';
       textDiv.style.top = top + 'px';
       textDiv.style.fontSize = fontHeight + 'px';
       textDiv.style.fontFamily = style.fontFamily;
-
-      textDiv.dataset.left = left;
-      textDiv.dataset.top = top;
-      textDiv.dataset.width = geom.width * this.viewport.scale;
-      textDiv.dataset.height = geom.height * this.viewport.scale;
-
+      
       textDiv.textContent = geom.str;
       // |fontName| is only used by the Font Inspector. This test will succeed
       // when e.g. the Font Inspector is off but the Stepper is on, but it's
@@ -185,9 +190,6 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
       // Storing into dataset will convert number into string.
       if (angle !== 0) {
         textDiv.dataset.angle = angle * (180 / Math.PI);
-      }
-      if(style.vertical) {
-        textDiv.dataset.vertical = true;
       }
       // We don't bother scaling single-char text divs, because it has very
       // little effect on text highlighting. This makes scrolling on docs with
@@ -207,20 +209,19 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
       //        padding around the element to improve selection experience.
       //    2 - Reorders the DOM elements in the stream so they are more closely
       //        in order of appearance in the PDF (also improving select).
-      var debug = false;
+      var debug = true;
       this.textContent = textContent;
 
       var textItems = textContent.items;
-      var textDivs = [];
       var len = textItems.length;
-      for (var it = 0; it < len; it++) {
-        textDivs.push(this.appendText(textItems[it], textContent.styles));
-      }
-      var N = Number;
       
+      var textDivs = []; // Just temporary
+      for (var i = 0; i < len; i++) {
+        textDivs.push(this.appendText(textItems[i], textContent.styles));
+      }
       
       function overlapBy(min1, min2, max1, max2, by) {
-        var d = Math.min(max1,max2) - Math.max(N(min1),N(min2));
+        var d = Math.min(max1,max2) - Math.max(min1,min2);
         return d > (max1-min1) * by || d > (max2-min2) * by;
       }
       
@@ -237,243 +238,183 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
        *         return false if we know that it isn't.  We change the text 
        *         layout if it's not a column in order to improve selectability.
        **/
-      function could_be_column(d, right, bottom) {
-        if(right.d < 1.25*N(d.dataset.width)/d.innerHTML.length) {
+      function could_be_column(geom, geom_r, geom_b) {
+        if(right.d < 1.25*geom.div.width/geom.str.length) {
             // If the space to the right less than a char length, not a column.
             return false;
         }
-        if(N(d.dataset.width) > page_width/2) {
+        if(geom.div.width > page_width/2) {
             // Can't be true if we're so wide.
             return false;
         }
-        var divr = textDivs[right.j];
-        if(right.d < 1.25*N(divr.dataset.width)/divr.innerHTML.length) {
+        var right_d = geom_r.left - geom.div.left - geom.div.width;
+        if(right_d < 1.25*geom_r.div.width/geom_r.str.length) {
             // If the space to the right less than a char length, not a column.
             return false;
         }
-        if(N(divr.dataset.width) > page_width/2) {
+        if(geom_r.div.width > page_width/2) {
             // Can't be true if the right is so wide.
             return false;
         }
-        // If the horizontal space between d and divr is much smaller than the
-        // vertical space between the next legitimate line.
-        if(bottom.j !== null && right.d < bottom.d &&
-                        bottom.d < N(d.dataset.height)) {
+        if(geom_b !== null) {
+          // If horizontal spacing is much smaller than next vertical spacing.
+          var bottom_d = geom_b.top - geom.div.top - geom.div.height;
+          if(right_d < bottom_d && bottom_d < geom.div.height) {
             return false;
+          }
         }
         // Whitespace should not connect columns and won't matter if it does.
-        if(d.dataset.isWhitespace || divr.dataset.isWhitespace) {
+        if(geom.isWhitespace || geom_r.isWhitespace) {
             return false;
         }
         
         // We cannot rule out that this is a text column, return true.
         return true;
       }
-      function could_be_next_line(d, bottom) {
+      function could_be_next_line(geom, geom_b) {
         // Return true if bottom could be a line directly underneath d.
-        if(bottom.j === null) {
+        if(geom_b === null) {
             return false;
         }
         // They have to be vertically close
-        if(bottom.d > N(d.dataset.height)) {
+        var bottom_d = geom_b.top - geom.div.top - geom.div.height;
+        if(bottom_d > geom.div.height) {
             return false;
         }
         // They must horizontally encapsulate each other.
         var divb = textDivs[bottom.j];
-        if(!overlapBy(d.dataset.left, divb.dataset.left,
-                        N(d.dataset.left) + N(d.dataset.width),
-                        N(divb.dataset.left) + N(divb.dataset.width), 0.99)) {
+        if(!overlapBy(geom.div.left, geom_b.div.left,
+                        geom.div.left + geom.div.width,
+                        geom_b.div.left + geom_b.div.width), 0.99) {
             return false;
         }
         return true;
       }
       
-      // The first item has a big impact on the flow, so track it.
-      var top_left = { j : null, d : 1e6 };
       // Set each element's padding to run to the nearest right and bottom 
       // element. The padding ensures that text selection works.
-      for (var i = 0; i < len; i++) {
-        // TODO: This is an O(N^2) algorithm. There are others out there.
-        // See generally http://en.wikipedia.org/wiki/Nearest_neighbor_search
+      
+
+      // The first item has a big impact on the flow, so track it.
+      var top_left = { j : null, d : 1e6 };
+      for (i = 0; i < len; i++) {
+        var geom = textItems[i];
         var divi = textDivs[i];
-        var divi_left = N(divi.dataset.left);
-        var divi_top = N(divi.dataset.top);
-        var divi_right = divi_left + N(divi.dataset.width);
-        var divi_bottom = divi_top + N(divi.dataset.height);
-        
+      
         // Keep track of the top-left most item.
-        var tl_d = Math.pow(divi_left, 2) + Math.pow(divi_top, 2);
+        var tl_d = Math.pow(geom.div.left, 2) + Math.pow(geom.div.top, 2);
         if(top_left.j === null || tl_d < top_left.d) {
             top_left.j = i;
             top_left.d = tl_d;
         }
         
-        // Keep track of the closest right and bottom elements
-        var right = { j : null, d : 1e6 };
-        var bottom = { j : null, d : 1e6 };
-        var bottom_nolap = { j : null, d : 1e6 };
-        // Allow elements overlap by a half pixel w/o being behind the object.
-        var e = 1.5*this.viewport.scale;
-        if(debug) {
-            console.log(divi.innerHTML);
-        }
-        for (var j = 0; j < len; j++) {
-            if(i === j) {
-                continue;
-            }
-            var divj = textDivs[j];
-            var divj_left = N(divj.dataset.left);
-            var divj_top = N(divj.dataset.top);
-            
-            // Consider divj if it's on the same line.
-            // First make sure it's ahead.
-            if(divi_right <= e + divj_left && (
-                // Vertical intersection
-                overlapBy(divi_top, divj_top, divi_bottom,
-                          divj_top + N(divj.dataset.height), 0.6)
-            )) {
-                var dright = divj_left - divi_right;
-                if(debug) {
-                    console.log('   H: ' + divj.innerHTML + ' --> ' + dright);
-                }
-                // Now update the max
-                if(dright < right.d) {
-                    right.d = dright;
-                    right.j = j;
-                }
-            }
-            
-            // Consider divj if its below divi.
-            if(divi_bottom <= e + divj_top) {
-                // Get the distance below.
-                var dbottom = divj_top - divi_bottom;
-                // Horizontal intersection
-                if(overlapBy(divi_left, divj_left, divi_right,
-                        divj_left + N(divj.dataset.width), 0)) {
-                    // Distance from bottom to top
-                    if(debug) {
-                        console.log('   V: ' + divj.innerHTML + ' --> ' +
-                                                                    dbottom);
-                    }
-                    if(dbottom < bottom.d) {
-                        bottom.d = dbottom;
-                        bottom.j = j;
-                    }
-                }
-                // Track of the closest below even if it doesn't overlap.
-                if(dbottom < bottom_nolap.d) {
-                    bottom_nolap.d = dbottom;
-                    bottom_nolap.j = j;
-                }
-            }
-        }
-        // Update the padding
-        divi.style.paddingRight = right.j !== null ?
-                    (N(textDivs[right.j].dataset.left) - divi_right) + 'px':
+        var right   = geom.div.left + geom.div.width;
+        var bottom  = geom.div.top + geom.div.height;
+        
+        var geom_r = geom.right !== undefined ? textItems[geom.right] : null;
+        var geom_b = geom.below !== undefined ? textItems[geom.below] : null;
+        
+        // Update Padding
+        divi.style.paddingRight = geom_r !== null ?
+                    (geom_r.div.left - right) + 'px':
                     // Take up the rest of the horizontal line on the page
-                    (this.textLayerDiv.offsetWidth - divi_right) + 'px';
-        divi.style.paddingBottom = bottom.j !== null ?
-                    (N(textDivs[bottom.j].dataset.top) - divi_bottom) + 'px':
+                    (this.textLayerDiv.offsetWidth - right) + 'px';
+        divi.style.paddingBottom = geom_b !== null ?
+                    (geom_b.top - bottom) + 'px':
                     // Take up the rest of the vertical space on the page
-                    (this.textLayerDiv.offsetHeight - divi_bottom) + 'px';
+                    (this.textLayerDiv.offsetHeight - bottom) + 'px';
         if(debug) {
-            console.log('H ' + right.j + ': ' +
-                    (right.j ? textDivs[right.j].innerHTML : ''));
-            console.log('V ' + bottom.j+ ': ' +
-                    (bottom.j ? textDivs[bottom.j].innerHTML:''));
+            divi.dataset.i = i;
+            console.log(geom.id + ": " + geom.str);
+            if(geom_r !== null) {
+              console.log('  H ' + geom_r.id + ': ' + geom_r.str);
+            }
+            if(geom_b !== null) {
+              console.log('  V ' + geom_b.id + ': ' + geom_b.str);
+            }
             console.log('');
         }
-        // Save this for later.
-        divi.dataset.i = i;
         
         // Put the divs into a linked list based on their order.
-        if(divi.dataset.vertical) {
+        if(geom.div.vertical) {
             // Is there such thing as rows of vertical text? FixMe if so.
-            if(bottom.j) {
-                divi.dataset.next = bottom.j;
+            if(geom_b) {
+                divi.dataset.next = geom_b.id;
             }
-        } else if(right.j) {
+        } else if(geom_r) {
             // Check for columns.
-            if(!could_be_column(divi, right, bottom)) {
-                divi.dataset.next = right.j;
-            } else if(could_be_next_line(divi, bottom)) {
+            if(!could_be_column(geom, geom_r, geom_b)) {
+                geom.flow.next = geom_r.id;
+            } else if(could_be_next_line(geom, geom_b)) {
                 // Save this bottom for another pass.
-                divi.dataset.saved_bottom = bottom.j;
+                geom.flow.saved_bottom = geom_b.id;
             } else {
                 // Not sure of a safe way to find the next line.
             }
-        } else if(could_be_next_line(divi, bottom)) {
-            divi.dataset.saved_bottom = bottom.j;
-        } else if(could_be_next_line(divi, bottom_nolap)) {
-            // I am not sure this is safe
-            divi.dataset.saved_bottom = bottom_nolap.j;
+        } else if(could_be_next_line(geom, geom_b)) {
+            divi.dataset.saved_bottom = geom_b.id;
         }
         // Make the reverse linked list.
-        if(divi.dataset.next) {
-            textDivs[N(divi.dataset.next)].dataset.prev = i;
+        if(geom.flow.next) {
+            textItems[geom.flow.next].flow.prev = geom.id;
         }
       }
       
-      // Do another pass through the elements. This isn't O(N^2) thankfully.
-      for (var i2 = 0; i2 < len; i2++) {
-        var divi2 = textDivs[i2];
-        if(divi2.dataset.next) {
-            continue;
-        }
-        if(!divi2.dataset.saved_bottom) {
-            continue;
-        }
-        var bottom_j = N(divi2.dataset.saved_bottom);
-        var divb2 = textDivs[bottom_j];
-        // We no longer need to hold on to this
-        delete divi2.dataset.saved_bottom;
-        // Get the first element in the following line.
-        var firstb = divb2;
-        while(firstb.dataset.prev) {
-            // Move backwards
-            var prevB = textDivs[N(firstb.dataset.prev)];
-            // Make sure they overlap vertically
-            if(!overlapBy(divb2.dataset.top, prevB.dataset.top,
-                    N(divb2.dataset.top) + N(divb2.dataset.height),
-                    N(prevB.dataset.top) + N(prevB.dataset.height), 0.8)) {
-                // No overlap
-                break;
-            }
-            firstb = prevB;
-        }
-        // If it's already linked up, then don't overwrite.
-        if(!firstb.dataset.prev) {
-            divi2.dataset.next = firstb.dataset.i;
-            firstb.dataset.prev = i2;
-        }
-      }
+      // 
+      // for (i = 0; i < len; i++) {
+        // geom = textItems[i];
+        // if(geom.next !== undefined || divi2.dataset.saved_bottom === undefined) {
+            // continue;
+        // }
+        // var divi = textDivs[i];
+        // var divi2 = textDivs[i2];
+        // var bottom_j = N(divi2.dataset.saved_bottom);
+        // var divb2 = textDivs[bottom_j];
+        // // We no longer need to hold on to this
+        // delete divi2.dataset.saved_bottom;
+        // // Get the first element in the following line.
+        // var firstb = divb2;
+        // while(firstb.dataset.prev) {
+            // // Move backwards
+            // var prevB = textDivs[N(firstb.dataset.prev)];
+            // // Make sure they overlap vertically
+            // if(!overlapBy(divb2.dataset.top, prevB.dataset.top,
+                    // N(divb2.dataset.top) + N(divb2.dataset.height),
+                    // N(prevB.dataset.top) + N(prevB.dataset.height), 0.8)) {
+                // // No overlap
+                // break;
+            // }
+            // firstb = prevB;
+        // }
+        // // If it's already linked up, then don't overwrite.
+        // if(!firstb.dataset.prev) {
+            // divi2.dataset.next = firstb.dataset.i;
+            // firstb.dataset.prev = i2;
+        // }
+      // }
       
-      // Final pass, we 
+      // Final pass: Re-order the divs for the proper text flow.
       var added = {};
       var orderedDivs = this.textDivs;
       function add_item_list(a) {
         if(added[a]) {
-            return false;
-        }
-        var divadd = textDivs[a];
-        if(divadd.dataset.prev) {
-            // Do not process this text element yet, it is linked to by 
-            // another text element.
-            delete divadd.dataset.prev;
             return;
         }
-        
-        orderedDivs.push(divadd);
+        var g = textItems[a];
+        if(g.flow.prev) {
+            // Do not process this text element yet, it is linked to by 
+            // another text element.
+            return;
+        }
+        orderedDivs.push(textDivs[a]);
         added[a] = true;
-        while(typeof(divadd.dataset.next) !== 'undefined') {
-            var next = N(divadd.dataset.next);
-            delete divadd.dataset.next;
-            if(added[next]) {
+        while(g.flow.next !== undefined) {
+            if(added[g.flow.next]) {
                 break;
             }
-            divadd = textDivs[next];
-            orderedDivs.push(divadd);
-            added[next] = true;
+            orderedDivs.push(textDivs[g.flow.next]);
+            added[g.flow.next] = true;
+            g = textItems[g.flow.next];
         }
       }
       if(top_left.j) {
