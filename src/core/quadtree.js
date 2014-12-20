@@ -328,7 +328,7 @@ var QuadTree = (function QuadTreeClosure() {
    * iteration, but it is usually much faster than that when the height is not
    * very large and the likelihood of crossing a boundary is relatively small.
    */
-  QNode.prototype.retrieve_iterate = function (item, func, 
+  QNode.prototype.retrieve_iterate = function (item, func,
                               sorter, side1, side2, deduper) {
     // Sort right to left.
     var sort_lr = function(a, b) { return a.x < b.x ? -1: (a.x>b.x?1:0); };
@@ -348,13 +348,13 @@ var QuadTree = (function QuadTreeClosure() {
         }
       } else if(indices[side1[0]]) {
         // We only need to look at one quartile.
-        if(!this.nodes[side1[0]].retrieve_iterate(item, func, 
+        if(!this.nodes[side1[0]].retrieve_iterate(item, func,
               sorter, side1, side2, deduper)) {
           return false;
         }
       } else if(indices[side1[1]]) {
         // We only need to look at one quartile.
-        if(!this.nodes[side1[1]].retrieve_iterate(item, func, 
+        if(!this.nodes[side1[1]].retrieve_iterate(item, func,
               sorter, side1, side2, deduper)) {
           return false;
         }
