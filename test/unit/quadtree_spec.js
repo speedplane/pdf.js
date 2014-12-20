@@ -297,11 +297,11 @@ describe('quadtree', function() {
         {y:1,x:2, width:80, height:2, id:1},
       ];
       quad.insert(items);
-      quad.retrieve_xinc(0,0,50,function(c) { 
+      quad.retrieve_xinc(0,0,50,function(c) {
         expect(c.id).toEqual(1);
         return false;
       });
-      quad.retrieve_xdec(100,0,50,function(c) { 
+      quad.retrieve_xdec(100,0,50,function(c) {
         expect(c.id).toEqual(1);
         return false;
       });
@@ -315,11 +315,11 @@ describe('quadtree', function() {
         {y:4,x:10, width:30, height:2, id:3},
       ];
       quad.insert(items);
-      quad.retrieve_xinc(0,0,50,function(c) { 
+      quad.retrieve_xinc(0,0,50,function(c) {
         expect(c.id).toEqual(1);
         return false;
       });
-      quad.retrieve_xdec(100,0,50,function(c) { 
+      quad.retrieve_xdec(100,0,50,function(c) {
         expect(c.id).toEqual(1);
         return false;
       });
@@ -331,11 +331,11 @@ describe('quadtree', function() {
         {x:1,y:2, width:2, height:80, id:1},
       ];
       quad.insert(items);
-      quad.retrieve_yinc(0,0,50,function(c) { 
+      quad.retrieve_yinc(0,0,50,function(c) {
         expect(c.id).toEqual(1);
         return false;
       });
-      quad.retrieve_ydec(0,100,50,function(c) { 
+      quad.retrieve_ydec(0,100,50,function(c) {
         expect(c.id).toEqual(1);
         return false;
       });
@@ -350,10 +350,10 @@ describe('quadtree', function() {
     quad.insert(items);
     var ct = 0;
     quad.retrieve_yinc(327.50, 226.06, 3.74, function (c) {
-      if(ct==0) {
+      if (ct === 0) {
         expect(c.id).toEqual(0);
         ct ++;
-      } else if (ct == 1) {
+      } else if (ct === 1) {
         expect(c.id).toEqual(1);
         ct ++;
       } else {
