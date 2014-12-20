@@ -168,29 +168,30 @@ var TextLayoutEvaluator = (function TextLayoutEvaluatorClosure() {
       var top_left = { j : null, d : 1e6 };
       // Set each element's padding to run to the nearest right and bottom 
       // element. The padding ensures that text selection works.
-      for (var i = 0; i < len; i++) {
+      for (i = 0; i < len; i++) {
         var d = objs[i];
         var d_x2 = d.x + d.width;
         var d_y2 = d.y + d.height;
         
         // Keep track of the top-left most item.
-        var tl_d = Math.pow(d.x, 2) + Math.pow(d.y, 2);
-        if(top_left.j === null || tl_d < top_left.d) {
+        if(top_left.j === null || d.y > top_left.d) {
             top_left.j = i;
-            top_left.d = tl_d;
+            top_left.d = d.y;
         }
         
         // Find the first object to the right.
-        self.quadtree.retrieve_xinc({x:d_x2,y:d.y,height:d.height}, 
-          function (dr) {
-            o.right = dr.id;
-            return false;
+        self.quadtree.retrieve_xinc(d.x,d.y,d.height, function (dr) {
+            if(dr.id !== d.id) {
+              d.right = dr.id;
+              return false;
+            }
         });
         // Find the object directly below.
-        self.quadtree.retrieve_yinc({x:d_x2,y:d.y,width:d.width}, 
-          function (db) {
-            o.below = db.id;
-            return false;
+        self.quadtree.retrieve_ydec(d.x,d.y,d.width, function (db) {
+            if(db.id !== d.id) {
+              d.below = db.id;
+              return false;
+            }
         });
       }
       return objs;
