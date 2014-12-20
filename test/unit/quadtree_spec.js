@@ -197,7 +197,7 @@ describe('quadtree', function() {
     // Adding the objects above should not have changed the test
     it('iterate x with objs', test_iterate_x_tests);
     for(i=0; i<100; i += 5) {
-      quad.insert({x:100-i, y:100-i/20, width:1, height:1});
+      quad.insert({x:99-i, y:98-i/20, width:1, height:1});
     }
     it('iterate x with more objs', test_iterate_x_tests);
   });
@@ -284,7 +284,7 @@ describe('quadtree', function() {
     // Adding the objects above should not have changed the test
     it('iterate x with objs', test_iterate_y_tests);
     for(i=0; i<100; i += 5) {
-      quad.insert({x:100-i/20, y:100-i, width:1, height:1});
+      quad.insert({x:99-i/20, y:99-i, width:1, height:1});
     }
     it('iterate x with more objs', test_iterate_y_tests);
     
@@ -295,6 +295,24 @@ describe('quadtree', function() {
       var items = [
         {y:1,x:10, width:30, height:2, id:0},
         {y:1,x:2, width:80, height:2, id:1},
+      ];
+      quad.insert(items);
+      quad.retrieve_xinc(0,0,50,function(c) { 
+        expect(c.id).toEqual(1);
+        return false;
+      });
+      quad.retrieve_xdec(100,0,50,function(c) { 
+        expect(c.id).toEqual(1);
+        return false;
+      });
+    });
+    it('X Direc - Multiquads', function () {
+      var quad = new QuadTree(bounds);
+      var items = [
+        {y:1,x:10, width:30, height:2, id:0},
+        {y:1,x:2, width:80, height:2, id:1},
+        {y:3,x:10, width:30, height:2, id:2},
+        {y:4,x:10, width:30, height:2, id:3},
       ];
       quad.insert(items);
       quad.retrieve_xinc(0,0,50,function(c) { 
@@ -322,5 +340,26 @@ describe('quadtree', function() {
         return false;
       });
     });
+  });
+  describe('Other Exmaples', function () {
+    var quad = new QuadTree({x:0,y:0,width:350, height:500});
+    var items = [
+      {x:327.50, y:226.06, width:3.74, height:14.96, id:0},
+      {x:321.85, y:243.27, width:14.98, height:14.96, id:1},
+    ];
+    quad.insert(items);
+    var ct = 0;
+    quad.retrieve_yinc(327.50, 226.06, 3.74, function (c) {
+      if(ct==0) {
+        expect(c.id).toEqual(0);
+        ct ++;
+      } else if (ct == 1) {
+        expect(c.id).toEqual(1);
+        ct ++;
+      } else {
+        expect(true).toEqual(false);
+      }
+    });
+    expect(ct).toEqual(2);
   });
 });

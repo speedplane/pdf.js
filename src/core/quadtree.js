@@ -58,13 +58,17 @@ var QuadTree = (function QuadTreeClosure() {
   **/
   QuadTree.prototype.insert = function (item) {
     if (item instanceof Array) {
-      var len = item.length;
-      var i;
-      for (i = 0; i < len; i++) {
-        this.root.insert(item[i]);
-        this.length++;
+      for (var i = 0, len=item.length; i < len; i++) {
+        this.insert(item[i]);
       }
     } else {
+      var b = this.root.bounds;
+      if(item.x >= b.x+b.width || item.x+item.width <= b.x ||
+          item.y >= b.y+b.height || item.y+item.height <= b.y) {
+          // Can extend past the bounds, but must be at least partially in it.
+          console.error("Failed QuadTree Bounds Check");
+          return 
+        } 
         this.root.insert(item);
         this.length++;
     }
@@ -114,8 +118,8 @@ var QuadTree = (function QuadTreeClosure() {
   QuadTree.prototype.retrieve_yinc = function (x,y,width, func) {
     var it = {x:x, y:y, width:width, height:this.root.bounds.height-y};
     var sorter = function(a, b) { return a.y < b.y ? -1: (a.y>b.y?1:0); };
-    var side1 = [QNode.BOTTOM_LEFT, QNode.BOTTOM_RIGHT];
-    var side2 = [QNode.TOP_LEFT,    QNode.TOP_RIGHT];
+    var side1 = [QNode.TOP_LEFT,    QNode.TOP_RIGHT];
+    var side2 = [QNode.BOTTOM_LEFT, QNode.BOTTOM_RIGHT];
     return this.root.retrieve_iterate(it, func, sorter, side1, side2, {});
   };
   /**
@@ -130,8 +134,8 @@ var QuadTree = (function QuadTreeClosure() {
         var ay=a.y+a.height, by=b.y+b.height;
         return ay < by ? 1: (ay>by?-1:0); 
     };
-    var side1 = [QNode.TOP_LEFT,    QNode.TOP_RIGHT];
-    var side2 = [QNode.BOTTOM_LEFT, QNode.BOTTOM_RIGHT];
+    var side1 = [QNode.BOTTOM_LEFT, QNode.BOTTOM_RIGHT];
+    var side2 = [QNode.TOP_LEFT,    QNode.TOP_RIGHT];
     return this.root.retrieve_iterate(it, func, sorter, side1, side2, {});
   };
   
@@ -373,7 +377,7 @@ var QuadTree = (function QuadTreeClosure() {
         }
       } else if(indices[side2[0]]) {
         // We only need to look at one quartile.
-        if(!this.nodes[QNode.TOP_RIGHT].retrieve_iterate(item, func,
+        if(!this.nodes[side2[0]].retrieve_iterate(item, func,
               sorter, side1, side2, deduper)) {
           return false;
         }
