@@ -1267,6 +1267,8 @@ html[dir='rtl'] .attachmentsItem > button {
 
 .textLayer ::selection { background: rgb(0,0,255); }
 .textLayer ::-moz-selection { background: rgb(0,0,255); }
+.textLayer .whitespace::selection { background: none; }
+.textLayer .whitespace::-moz-selection { background: none; }
 .textLayer {
   opacity: 0.2;
 }

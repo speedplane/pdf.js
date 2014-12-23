@@ -78,9 +78,6 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
       var lastFontFamily;
       for (var i = 0; i < textDivsLength; i++) {
         var textDiv = textDivs[i];
-        if (textDiv.dataset.isWhitespace !== undefined) {
-          continue;
-        }
 
         var fontSize = textDiv.style.fontSize;
         var fontFamily = textDiv.style.fontFamily;
@@ -141,10 +138,10 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
     appendText: function TextLayerBuilder_appendText(geom, styles) {
       var style = styles[geom.fontName];
       var textDiv = document.createElement('div');
-      this.textDivs.push(textDiv);
-      if (isAllWhitespace(geom.str)) {
-        textDiv.dataset.isWhitespace = true;
-        return;
+      if (geom.isWhitespace || isAllWhitespace(geom.str)) {
+        // Whitespace elements aren't visible, but they're used for copy/paste.
+        geom.isWhitespace = true;
+        textDiv.className += ' whitespace';
       }
       var tx = PDFJS.Util.transform(this.viewport.transform, geom.transform);
       var angle = Math.atan2(tx[1], tx[0]);
@@ -168,11 +165,19 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
         left = tx[4] + (fontAscent * Math.sin(angle));
         top = tx[5] - (fontAscent * Math.cos(angle));
       }
+      // Save info about the div in the geom for fast access.
+      geom.div = {
+        left    : left,
+        top     : top,
+        width   : geom.width * this.viewport.scale,
+        height  : geom.height * this.viewport.scale,
+        vertical: style.vertical ? true:false,
+      };
+      
       textDiv.style.left = left + 'px';
       textDiv.style.top = top + 'px';
       textDiv.style.fontSize = fontHeight + 'px';
       textDiv.style.fontFamily = style.fontFamily;
-
       textDiv.textContent = geom.str;
       // |fontName| is only used by the Font Inspector. This test will succeed
       // when e.g. the Font Inspector is off but the Stepper is on, but it's
@@ -187,22 +192,48 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
       // We don't bother scaling single-char text divs, because it has very
       // little effect on text highlighting. This makes scrolling on docs with
       // lots of such divs a lot faster.
-      if (textDiv.textContent.length > 1) {
-        if (style.vertical) {
-          textDiv.dataset.canvasWidth = geom.height * this.viewport.scale;
-        } else {
-          textDiv.dataset.canvasWidth = geom.width * this.viewport.scale;
-        }
+      if(textDiv.textContent.length > 1) {
+          textDiv.dataset.canvasWidth =  style.vertical ?
+                    geom.height * this.viewport.scale:
+                    geom.width * this.viewport.scale;
       }
+      return textDiv;
     },
 
     setTextContent: function TextLayerBuilder_setTextContent(textContent) {
+      // This function will add the text divs and append them to the DOM
       this.textContent = textContent;
 
       var textItems = textContent.items;
-      for (var i = 0, len = textItems.length; i < len; i++) {
-        this.appendText(textItems[i], textContent.styles);
+      var len = textItems.length;
+      
+      var textDivs = []; // Just temporary
+      for (var i = 0; i < len; i++) {
+        textDivs.push(this.appendText(textItems[i], textContent.styles));
       }
+      
+      // Set each element's padding to run to the nearest right and bottom 
+      // element. The padding ensures that text selection works.
+      var page_w = this.textLayerDiv.offsetWidth;
+      var page_h = this.textLayerDiv.offsetHeight;
+      for (i = 0; i < len; i++) {
+        var geom = textItems[i];
+        var divi = textDivs[i];
+        
+        var bottom  = geom.div.top + geom.div.height;
+        var right   = geom.div.left + geom.div.width;
+        
+        var far_right = geom.right !== null ?
+                          textItems[geom.right].div.left : page_w;
+        var far_bottom = geom.bottom !== null ?
+                          textItems[geom.bottom].div.top : page_h;
+        
+        // Update Padding
+        divi.style.paddingRight = (far_right - right) + 'px';
+        divi.style.paddingBottom = (far_bottom - bottom) + 'px';
+      }
+      this.textDivs = textDivs;
+      
       this.divContentDone = true;
       this.setupRenderLayoutTimer();
     },
