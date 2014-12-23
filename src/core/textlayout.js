@@ -59,74 +59,6 @@ var TextLayoutEvaluator = (function TextLayoutEvaluatorClosure() {
         return d > (max1-min1) * by || d > (max2-min2) * by;
     },
     
-    /**
-     * Returns true if an element and the element directly to the right could
-     * be two separate columns in a text column.
-     *
-     * @d     the div that we're checking.
-     * @right structure telling us the div to the right.
-     * @bottom structure telling us the div to the bottom.
-     *
-     * @return true if the right item "could be" a separate text column. We 
-     *         return false if we know that it isn't.  We change the text 
-     *         layout if it's not a column in order to improve selectability.
-     **/
-    could_be_column : function (d, right, bottom) {
-      var right_d = right.x - d.x - d.width;
-      if(right_d < 1.25*d.width/d.str.length) {
-          // If the space to the right less than a char length, not a column.
-          return false;
-      }
-      if(d.width > this.bounds.width/2) {
-          // Can't be true if we're so wide.
-          return false;
-      }
-      if(right.d < 1.25*right.width/right.str.length) {
-          // If the space to the right less than a char length, not a column.
-          return false;
-      }
-      if(right.width > this.bounds.width/2) {
-          // Can't be true if the right is so wide.
-          return false;
-      }
-      // If the horizontal space between d and divr is much smaller than the
-      // vertical space between the next legitimate line.
-      if(bottom) {
-        var bottom_d = d.y + d.height - bottom.y;
-        if (right_d < bottom_d && bottom_d < d.height) {
-              return false;
-        }
-      }
-      
-      if(d.isWhitespace || right.isWhitespace) {
-        // we shouldn't enter this... we should skip whitespace first.
-          return false;
-      }
-      
-      // We cannot rule out that this is a text column, return true.
-      return true;
-    },
-    
-    could_be_next_line : function (d, bottom) {
-      // Return true if bottom could be a line directly underneath d.
-      if(bottom === null) {
-          return false;
-      }
-      var bottom_d = d.y + d.height - bottom.y;
-      // They have to be vertically close
-      if(bottom_d > d.height) {
-          return false;
-      }
-      // They must horizontally encapsulate each other.
-      var divb = textDivs[bottom.j];
-      if(!this.overlapBy(d.left, divb.left,
-                      d.left + d.width,
-                      divb.left + divb.width, 0.99)) {
-          return false;
-      }
-      return true;
-    },
-    
     addToQuadTree: function(o, i, styles) {
       var style = styles[o.fontName];
       if (isAllWhitespace(o.str)) {
@@ -165,12 +97,6 @@ var TextLayoutEvaluator = (function TextLayoutEvaluatorClosure() {
       o.id = i;         // Used to uniquely identify object.
       o.right = null;   // The nearest object to the right.
       o.bottom = null;  // The nearest object to the left.
-      o.flow = {
-        right : null,   // Nearest non-whitespace text to the right
-        bottom: null,
-        next  : null,
-        prev  : null,
-      };
           
       this.quadtree.insert(o);
     },
@@ -178,7 +104,6 @@ var TextLayoutEvaluator = (function TextLayoutEvaluatorClosure() {
     calculateTextFlow: function (bounds, objs, styles) {
       var timeSlotManager = new TimeSlotManager();
       var self = this;
-      var calc_reflow = true;
       self.bounds = bounds;
       
       // Put everything into the quadtree so it's fast to look things up.
@@ -189,6 +114,7 @@ var TextLayoutEvaluator = (function TextLayoutEvaluatorClosure() {
       
       // The top item has a big impact on the flow, so track it.
       var top_obj = null;
+      
       // Set each element's padding to run to the nearest right and bottom 
       // element. The padding ensures that text selection works.
       for (i = 0; i < len; i++) {
@@ -200,96 +126,21 @@ var TextLayoutEvaluator = (function TextLayoutEvaluatorClosure() {
         if(!d.isWhitespace && (top_obj === null || d.y > top_obj.y)) {
             top_obj = d;
         }
-        if (!calc_reflow) {
-          // Find the first object to the right.
-          self.quadtree.retrieve_xinc(d.x+d.width,d.y,d.height, function (dr) {
-              if(dr.id !== d.id) {
-                d.right = dr.id;
-                return false;
-              }
-          });
-          // Find the object directly below, subtract the height to move down.
-          self.quadtree.retrieve_ydec(d.x,d.y-d.height,d.width, function (db) {
-              if(db.id !== d.id) {
-                d.bottom = db.id;
-                return false;
-              }
-          });
-        } else {
-          // Iterate to the right.
-          self.quadtree.retrieve_xinc(d.x+d.width,d.y,d.height, function (dr) {
-              if(dr.id !== d.id) {
-                // Find the first item to the right.
-                if(d.right === null) {
-                  d.right = dr.id;
-                }
-                if(dr.isWhitespace !== true) {
-                  // Retrieve the first non whitespace item to the right.
-                  d.flow.right = dr.id;
-                  return false;
-                }
-              }
-          });
-          
-          // Iterate down
-          self.quadtree.retrieve_ydec(d.x,d.y-d.height,d.width, function (db) {
-              if(db.id !== d.id) {
-                if(d.bottom === null) {
-                  d.bottom = db.id;
-                }
-                if(db.isWhitespace !== true) {
-                  d.flow.bottom = db.id;
-                  return false;
-                }
-              }
-          });
-          
-          if(d.flow.right !== null) {
-            objs[d.flow.right].flow.left = d.id;
-          }
-          if(d.flow.bottom !== null) {
-            objs[d.flow.bottom].flow.top = d.id;
-          }
-        }
-      }
-      
-      if(calc_reflow) {
-        // Find the top left-most item.
-        while(top_obj && top_obj.flow.left) {
-          top_obj = objs[top_obj.flow.left];
-        }
-        
-        for (i = 0; i < len; i++) {
-          d = objs[i];
-          
-          // Put the divs into a linked list based on their order.
-          if(d.vertical) {
-              // Is there such thing as rows of vertical text? FixMe if so.
-              if(d.flow.buttom) {
-                  d.flow.next = d.flow.buttom;
-              }
-          } else if(d.flow.right) {
-            if(!self.could_be_column(d, objs[d.flow.right], 
-                                      objs[d.flow.bottom])) {
-              // Set next to the next object, which may be whitespace. 
-              // We don't a want the flow to skip the whitespace.
-              d.flow.next = d.right;
-            } else if(d.flow.right === i + 1 || d.right === i + 1) {
-              // Put effort into finding the next line in the flow
-              // it is likely beneath this line or in another column.
-              
+        // Find the first object to the right.
+        self.quadtree.retrieve_xinc(d.x+d.width,d.y,d.height, function (dr) {
+            if(dr.id !== d.id) {
+              d.right = dr.id;
+              return false;
             }
-          } else {
-            // No text to the right of this element. Rely on the natural flow.
-          }
-          // Make the reverse linked list.
-          if(d.flow.next) {
-              objs[d.flow.next].flow.prev = d.id;
-          }
-        }
+        });
+        // Find the object directly below, subtract the height to move down.
+        self.quadtree.retrieve_ydec(d.x,d.y-d.height,d.width, function (db) {
+            if(db.id !== d.id) {
+              d.bottom = db.id;
+              return false;
+            }
+        });
       }
-      
-      return top_obj ? top_obj.id : null;
     }
   };
   return TextLayoutEvaluator;
