@@ -203,13 +203,8 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
     },
 
     setTextContent: function TextLayerBuilder_setTextContent(textContent) {
-      // This function will add the text divs and append them to the DOM.
-      // It does two things that are computationally expensive:
-      //    1 - Finds the nearest neighbour of each text element, so we can add
-      //        padding around the element to improve selection experience.
-      //    2 - Reorders the DOM elements in the stream so they are more closely
-      //        in order of appearance in the PDF (also improving select).
-      var debug = true;
+      // This function will add the text divs and append them to the DOM
+      var debug = false;
       this.textContent = textContent;
 
       var textItems = textContent.items;
@@ -220,214 +215,38 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
         textDivs.push(this.appendText(textItems[i], textContent.styles));
       }
       
-      function overlapBy(min1, min2, max1, max2, by) {
-        var d = Math.min(max1,max2) - Math.max(min1,min2);
-        return d > (max1-min1) * by || d > (max2-min2) * by;
-      }
-      
-      var page_width = this.textLayerDiv.offsetWidth;
-      /**
-       * Returns true if an element and the element directly to the right could
-       * be two separate columns in a text column.
-       *
-       * @d     the div that we're checking.
-       * @right structure telling us the div to the right.
-       * @bottom structure telling us the div to the bottom.
-       *
-       * @return true if the right item "could be" a separate text column. We 
-       *         return false if we know that it isn't.  We change the text 
-       *         layout if it's not a column in order to improve selectability.
-       **/
-      function could_be_column(geom, geom_r, geom_b) {
-        if(right.d < 1.25*geom.div.width/geom.str.length) {
-            // If the space to the right less than a char length, not a column.
-            return false;
-        }
-        if(geom.div.width > page_width/2) {
-            // Can't be true if we're so wide.
-            return false;
-        }
-        var right_d = geom_r.left - geom.div.left - geom.div.width;
-        if(right_d < 1.25*geom_r.div.width/geom_r.str.length) {
-            // If the space to the right less than a char length, not a column.
-            return false;
-        }
-        if(geom_r.div.width > page_width/2) {
-            // Can't be true if the right is so wide.
-            return false;
-        }
-        if(geom_b !== null) {
-          // If horizontal spacing is much smaller than next vertical spacing.
-          var bottom_d = geom_b.top - geom.div.top - geom.div.height;
-          if(right_d < bottom_d && bottom_d < geom.div.height) {
-            return false;
-          }
-        }
-        // Whitespace should not connect columns and won't matter if it does.
-        if(geom.isWhitespace || geom_r.isWhitespace) {
-            return false;
-        }
-        
-        // We cannot rule out that this is a text column, return true.
-        return true;
-      }
-      function could_be_next_line(geom, geom_b) {
-        // Return true if bottom could be a line directly underneath d.
-        if(geom_b === null) {
-            return false;
-        }
-        // They have to be vertically close
-        var bottom_d = geom_b.top - geom.div.top - geom.div.height;
-        if(bottom_d > geom.div.height) {
-            return false;
-        }
-        // They must horizontally encapsulate each other.
-        var divb = textDivs[bottom.j];
-        if(!overlapBy(geom.div.left, geom_b.div.left,
-                        geom.div.left + geom.div.width,
-                        geom_b.div.left + geom_b.div.width), 0.99) {
-            return false;
-        }
-        return true;
-      }
-      
       // Set each element's padding to run to the nearest right and bottom 
       // element. The padding ensures that text selection works.
-      
-
-      // The first item has a big impact on the flow, so track it.
-      var top_left = { j : null, d : 1e6 };
+      var page_w = this.textLayerDiv.offsetWidth;
+      var page_h = this.textLayerDiv.offsetHeight;
       for (i = 0; i < len; i++) {
         var geom = textItems[i];
         var divi = textDivs[i];
-      
-        // Keep track of the top-left most item.
-        var tl_d = Math.pow(geom.div.left, 2) + Math.pow(geom.div.top, 2);
-        if(top_left.j === null || tl_d < top_left.d) {
-            top_left.j = i;
-            top_left.d = tl_d;
-        }
         
-        var right   = geom.div.left + geom.div.width;
         var bottom  = geom.div.top + geom.div.height;
+        var right   = geom.div.left + geom.div.width;
         
-        var geom_r = geom.right !== undefined ? textItems[geom.right] : null;
-        var geom_b = geom.below !== undefined ? textItems[geom.below] : null;
+        var far_right = geom.right !== null ?
+                          textItems[geom.right].div.left : page_w;
+        var far_bottom = geom.bottom !== null ?
+                          textItems[geom.bottom].div.top : page_h;
         
         // Update Padding
-        divi.style.paddingRight = geom_r !== null ?
-                    (geom_r.div.left - right) + 'px':
-                    // Take up the rest of the horizontal line on the page
-                    (this.textLayerDiv.offsetWidth - right) + 'px';
-        divi.style.paddingBottom = geom_b !== null ?
-                    (geom_b.div.top - bottom) + 'px':
-                    // Take up the rest of the vertical space on the page
-                    (this.textLayerDiv.offsetHeight - bottom) + 'px';
-        if(debug) {
-          // Set fields in the dataset to make debugging easier
-          divi.dataset.i = i;
-          divi.dataset.width = geom.div.width;
-          divi.dataset.height = geom.div.height;
-          console.log(geom.id + ": " + geom.str);
-          if(geom_r !== null) {
-            divi.dataset.i_right = geom_r.id;
-            console.log('  H ' + geom_r.id + ': ' + geom_r.str);
-          }
-          if(geom_b !== null) {
-            divi.dataset.i_below = geom_b.id;
-            console.log('  V ' + geom_b.id + ': ' + geom_b.str);
-          }
-          console.log('');
-        }
+        divi.style.paddingRight = (far_right - right) + 'px';
+        divi.style.paddingBottom = (far_bottom - bottom) + 'px';
         
-        // Put the divs into a linked list based on their order.
-        if(geom.div.vertical) {
-            // Is there such thing as rows of vertical text? FixMe if so.
-            if(geom_b) {
-                divi.dataset.next = geom_b.id;
-            }
-        } else if(geom_r) {
-            // Check for columns.
-            if(!could_be_column(geom, geom_r, geom_b)) {
-                geom.flow.next = geom_r.id;
-            } else if(could_be_next_line(geom, geom_b)) {
-                // Save this bottom for another pass.
-                geom.flow.saved_bottom = geom_b.id;
-            } else {
-                // Not sure of a safe way to find the next line.
-            }
-        } else if(could_be_next_line(geom, geom_b)) {
-            divi.dataset.saved_bottom = geom_b.id;
-        }
-        // Make the reverse linked list.
-        if(geom.flow.next) {
-            textItems[geom.flow.next].flow.prev = geom.id;
+        if(debug) {
+          // Set dataset fields to make debugging easier
+          divi.dataset.i = i;
+          if(geom.flow && geom.flow.right) {
+            divi.dataset.i_right = geom.flow.right.id;
+          }
+          if(geom.flow && geom.flow.bottom) {
+            divi.dataset.i_bottom = geom.flow.bottom.id;
+          }
         }
       }
-      
-      // 
-      // for (i = 0; i < len; i++) {
-        // geom = textItems[i];
-        // if(geom.next !== undefined || divi2.dataset.saved_bottom === undefined) {
-            // continue;
-        // }
-        // var divi = textDivs[i];
-        // var divi2 = textDivs[i2];
-        // var bottom_j = N(divi2.dataset.saved_bottom);
-        // var divb2 = textDivs[bottom_j];
-        // // We no longer need to hold on to this
-        // delete divi2.dataset.saved_bottom;
-        // // Get the first element in the following line.
-        // var firstb = divb2;
-        // while(firstb.dataset.prev) {
-            // // Move backwards
-            // var prevB = textDivs[N(firstb.dataset.prev)];
-            // // Make sure they overlap vertically
-            // if(!overlapBy(divb2.dataset.top, prevB.dataset.top,
-                    // N(divb2.dataset.top) + N(divb2.dataset.height),
-                    // N(prevB.dataset.top) + N(prevB.dataset.height), 0.8)) {
-                // // No overlap
-                // break;
-            // }
-            // firstb = prevB;
-        // }
-        // // If it's already linked up, then don't overwrite.
-        // if(!firstb.dataset.prev) {
-            // divi2.dataset.next = firstb.dataset.i;
-            // firstb.dataset.prev = i2;
-        // }
-      // }
-      
-      // Final pass: Re-order the divs for the proper text flow.
-      var added = {};
-      var orderedDivs = this.textDivs;
-      function add_item_list(a) {
-        if(added[a]) {
-            return;
-        }
-        var g = textItems[a];
-        if(g.flow.prev) {
-            // Do not process this text element yet, it is linked to by 
-            // another text element.
-            return;
-        }
-        orderedDivs.push(textDivs[a]);
-        added[a] = true;
-        while(g.flow.next !== undefined) {
-            if(added[g.flow.next]) {
-                break;
-            }
-            orderedDivs.push(textDivs[g.flow.next]);
-            added[g.flow.next] = true;
-            g = textItems[g.flow.next];
-        }
-      }
-      if(top_left.j) {
-        add_item_list(top_left.j);
-      }
-      for (var a = 0; a < len; a++) {
-        add_item_list(a);
-      }
+      this.textDivs = textDivs;
       
       this.divContentDone = true;
       this.setupRenderLayoutTimer();
