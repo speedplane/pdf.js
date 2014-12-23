@@ -36,6 +36,8 @@ var otherFiles = [
   'core/colorspace.js',
   'core/crypto.js',
   'core/pattern.js',
+  'core/quadtree.js',
+  'core/textlayout.js',
   'core/evaluator.js',
   'core/cmap.js',
   'core/fonts.js',
