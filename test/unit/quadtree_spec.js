@@ -117,6 +117,19 @@ describe('quadtree', function() {
     });
   });
   
+  function it_to_ar(iterator) {
+    // Convert an iterator to an array
+    var out = [];
+    while(true) {
+      var item = iterator.next();
+      if(item === null) {
+        return out;
+      }
+      out.push(item);
+    }
+    return out;
+  }
+  
   describe('Quadtree X Iteration', function() {
     var quad = new QuadTree(bounds);
     var items = [
@@ -132,56 +145,44 @@ describe('quadtree', function() {
     function test_iterate_x_tests() {
       // Runs tests on a quad in the x direction. 
       var out = [];
-      quad.retrieve_xinc(0,49,1,function(c) { out.push(c); });
+      out = it_to_ar(quad.retrieve_xinc(0,49,1));
       expect(out).toEqual(items);
-      out = [];
-      quad.retrieve_xinc(0,49,5,function(c) { out.push(c); });
+      
+      out = it_to_ar(quad.retrieve_xinc(0,49,5));
       expect(out).toEqual(items);
       
       // Skip the first
-      out = [];
-      quad.retrieve_xinc(4,49,1,function(c) { out.push(c); });
+      out = it_to_ar(quad.retrieve_xinc(4,49,1));
       expect(out).toEqual(items.slice(1));
       // Skip all
-      out = [];
-      quad.retrieve_xinc(14,49,1,function(c) { out.push(c); });
+      out = it_to_ar(quad.retrieve_xinc(14,49,1));
       expect(out).toEqual([]);
       // Get the edges
-      out = [];
-      quad.retrieve_xinc(0,48,1,function(c) { out.push(c); });
+      out = it_to_ar(quad.retrieve_xinc(0,48,1));
       expect(out).toEqual([]);
-      out = [];
-      quad.retrieve_xinc(0,51,1,function(c) { out.push(c); });
+      out = it_to_ar(quad.retrieve_xinc(0,51,1));
       expect(out).toEqual([]);
       
       // Now test the same in reverse
       items.reverse();
       
-      out = [];
-      quad.retrieve_xdec(50,49,1,function(c) { out.push(c); });
+      out = it_to_ar(quad.retrieve_xdec(50,49,1));
       expect(out).toEqual(items);
-      out = [];
-      quad.retrieve_xdec(13,49,1,function(c) { out.push(c); });
+      out = it_to_ar(quad.retrieve_xdec(13,49,1));
       expect(out).toEqual(items);
       // Skip the first
-      out = [];
-      quad.retrieve_xdec(12,49,1,function(c) { out.push(c); });
+      out = it_to_ar(quad.retrieve_xdec(12,49,1));
       expect(out).toEqual(items.slice(1));
-      out = [];
-      quad.retrieve_xdec(9,49,1,function(c) { out.push(c); });
+      out = it_to_ar(quad.retrieve_xdec(9,49,1));
       expect(out).toEqual(items.slice(2));
       // Get the edges
-      out = [];
-      quad.retrieve_xdec(8,49,1,function(c) { out.push(c); });
+      out = it_to_ar(quad.retrieve_xdec(8,49,1));
       expect(out).toEqual(items.slice(3));
-      out = [];
-      quad.retrieve_xdec(6,49,1,function(c) { out.push(c); });
+      out = it_to_ar(quad.retrieve_xdec(6,49,1));
       expect(out).toEqual(items.slice(4));
-      out = [];
-      quad.retrieve_xdec(4,49,1,function(c) { out.push(c); });
+      out = it_to_ar(quad.retrieve_xdec(4,49,1));
       expect(out).toEqual(items.slice(5));
-      out = [];
-      quad.retrieve_xdec(2,49,1,function(c) { out.push(c); });
+      out = it_to_ar(quad.retrieve_xdec(2,49,1));
       expect(out).toEqual([]);
       
       // Put items back into forward order
@@ -219,56 +220,43 @@ describe('quadtree', function() {
     function test_iterate_y_tests() {
       // Runs tests on a quad in the x direction. 
       var out = [];
-      quad.retrieve_yinc(49,0,1,function(c) { out.push(c); });
+      out = it_to_ar(quad.retrieve_yinc(49,0,1));
       expect(out).toEqual(items);
-      out = [];
-      quad.retrieve_yinc(49,0,5,function(c) { out.push(c); });
+      out = it_to_ar(quad.retrieve_yinc(49,0,5));
       expect(out).toEqual(items);
       
       // Skip the first
-      out = [];
-      quad.retrieve_yinc(49,4,1,function(c) { out.push(c); });
+      out = it_to_ar(quad.retrieve_yinc(49,4,1));
       expect(out).toEqual(items.slice(1));
       // Skip all
-      out = [];
-      quad.retrieve_yinc(49,14,1,function(c) { out.push(c); });
+      out = it_to_ar(quad.retrieve_yinc(49,14,1));
       expect(out).toEqual([]);
       // Get the edges
-      out = [];
-      quad.retrieve_yinc(48,0,1,function(c) { out.push(c); });
+      out = it_to_ar(quad.retrieve_yinc(48,0,1));
       expect(out).toEqual([]);
-      out = [];
-      quad.retrieve_yinc(51,0,1,function(c) { out.push(c); });
+      out = it_to_ar(quad.retrieve_yinc(51,0,1));
       expect(out).toEqual([]);
       
       // Now test the same in reverse
       items.reverse();
       
-      out = [];
-      quad.retrieve_ydec(49,50,1,function(c) { out.push(c); });
+      out = it_to_ar(quad.retrieve_ydec(49,50,1));
       expect(out).toEqual(items);
-      out = [];
-      quad.retrieve_ydec(49,13,1,function(c) { out.push(c); });
+      out = it_to_ar(quad.retrieve_ydec(49,13,1));
       expect(out).toEqual(items);
       // Skip the first
-      out = [];
-      quad.retrieve_ydec(49,12,1,function(c) { out.push(c); });
+      out = it_to_ar(quad.retrieve_ydec(49,12,1));
       expect(out).toEqual(items.slice(1));
-      out = [];
-      quad.retrieve_ydec(49,9,1,function(c) { out.push(c); });
+      out = it_to_ar(quad.retrieve_ydec(49,9,1));
       expect(out).toEqual(items.slice(2));
       // Get the edges
-      out = [];
-      quad.retrieve_ydec(49,8,1,function(c) { out.push(c); });
+      out = it_to_ar(quad.retrieve_ydec(49,8,1));
       expect(out).toEqual(items.slice(3));
-      out = [];
-      quad.retrieve_ydec(49,6,1,function(c) { out.push(c); });
+      out = it_to_ar(quad.retrieve_ydec(49,6,1));
       expect(out).toEqual(items.slice(4));
-      out = [];
-      quad.retrieve_ydec(49,4,1,function(c) { out.push(c); });
+      out = it_to_ar(quad.retrieve_ydec(49,4,1));
       expect(out).toEqual(items.slice(5));
-      out = [];
-      quad.retrieve_ydec(49,2,1,function(c) { out.push(c); });
+      out = it_to_ar(quad.retrieve_ydec(49,2,1));
       expect(out).toEqual([]);
       
       // Put items back into forward order
@@ -297,14 +285,11 @@ describe('quadtree', function() {
         {y:1,x:2, width:80, height:2, id:1},
       ];
       quad.insert(items);
-      quad.retrieve_xinc(0,0,50,function(c) {
-        expect(c.id).toEqual(1);
-        return false;
-      });
-      quad.retrieve_xdec(100,0,50,function(c) {
-        expect(c.id).toEqual(1);
-        return false;
-      });
+      var c;
+      c = quad.retrieve_xinc(0,0,50).next();
+      expect(c && c.id).toEqual(1);
+      c = quad.retrieve_xdec(100,0,50).next();
+      expect(c && c.id).toEqual(1);
     });
     it('X Direc - Multiquads', function () {
       var quad = new QuadTree(bounds);
@@ -315,14 +300,11 @@ describe('quadtree', function() {
         {y:4,x:10, width:30, height:2, id:3},
       ];
       quad.insert(items);
-      quad.retrieve_xinc(0,0,50,function(c) {
-        expect(c.id).toEqual(1);
-        return false;
-      });
-      quad.retrieve_xdec(100,0,50,function(c) {
-        expect(c.id).toEqual(1);
-        return false;
-      });
+      var c;
+      c = quad.retrieve_xinc(0,0,50).next();
+      expect(c && c.id).toEqual(1);
+      c = quad.retrieve_xdec(100,0,50).next();
+      expect(c && c.id).toEqual(1);
     });
     it('Y Direc', function () {
       var quad = new QuadTree(bounds);
@@ -331,14 +313,11 @@ describe('quadtree', function() {
         {x:1,y:2, width:2, height:80, id:1},
       ];
       quad.insert(items);
-      quad.retrieve_yinc(0,0,50,function(c) {
-        expect(c.id).toEqual(1);
-        return false;
-      });
-      quad.retrieve_ydec(0,100,50,function(c) {
-        expect(c.id).toEqual(1);
-        return false;
-      });
+      var c;
+      c = quad.retrieve_yinc(0,0,50).next();
+      expect(c && c.id).toEqual(1);
+      c = quad.retrieve_ydec(0,100,50).next();
+      expect(c && c.id).toEqual(1);
     });
   });
   describe('Other Exmaples', function () {
@@ -348,18 +327,9 @@ describe('quadtree', function() {
       {x:321.85, y:243.27, width:14.98, height:14.96, id:1},
     ];
     quad.insert(items);
-    var ct = 0;
-    quad.retrieve_yinc(327.50, 226.06, 3.74, function (c) {
-      if (ct === 0) {
-        expect(c.id).toEqual(0);
-        ct ++;
-      } else if (ct === 1) {
-        expect(c.id).toEqual(1);
-        ct ++;
-      } else {
-        expect(true).toEqual(false);
-      }
-    });
-    expect(ct).toEqual(2);
+    
+    var out = it_to_ar(quad.retrieve_yinc(327.50, 226.06, 3.74));
+    out = out.map(function (c) { return c.id; });
+    expect(out).toEqual([0, 1]);
   });
 });
