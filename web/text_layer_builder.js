@@ -67,6 +67,7 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
     renderLayer: function TextLayerBuilder_renderLayer() {
       var textLayerFrag = document.createDocumentFragment();
       var textDivs = this.textDivs;
+      var textItems = this.textContent.items;
       var textDivsLength = textDivs.length;
       var canvas = document.createElement('canvas');
       var ctx = canvas.getContext('2d');
@@ -95,14 +96,21 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
 
         var width = ctx.measureText(textDiv.textContent).width;
         if (width > 0) {
+          var textItem = textItems[i];
           textLayerFrag.appendChild(textDiv);
           var transform;
-          if (textDiv.dataset.canvasWidth !== undefined) {
+          // Don't scale single-char text divs, because it has little effect on
+          // highlighting and makes scrolling lots of such divs a lot faster.
+          if(textItem.str.length > 1) {
             // Dataset values come of type string.
-            var textScale = textDiv.dataset.canvasWidth / width;
+            var canvasWidth = textItem.vertical ?
+                    textItem.height * this.viewport.scale:
+                    textItem.width * this.viewport.scale;
+            var textScale = canvasWidth / width;
             transform = 'scaleX(' + textScale + ')';
           } else {
-            transform = '';
+            // Chrome creates selection padding artifacts if scaleX isn't set.
+            transform = 'scaleX(1.0)';
           }
           var rotation = textDiv.dataset.angle;
           if (rotation) {
@@ -176,13 +184,9 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
         top = tx[5] - (fontAscent * Math.cos(angle));
       }
       // Save info about the div in the geom for fast access.
-      geom.div = {
-        left    : left,
-        top     : top,
-        width   : geom.width * this.viewport.scale,
-        height  : geom.height * this.viewport.scale,
-        vertical: style.vertical ? true:false,
-      };
+      geom.div_left = left;
+      geom.div_top = top;
+      geom.vertical = style.vertical ? true : false;
       
       textDiv.style.left = left + 'px';
       textDiv.style.top = top + 'px';
@@ -198,14 +202,6 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
       // Storing into dataset will convert number into string.
       if (angle !== 0) {
         textDiv.dataset.angle = angle * (180 / Math.PI);
-      }
-      // We don't bother scaling single-char text divs, because it has very
-      // little effect on text highlighting. This makes scrolling on docs with
-      // lots of such divs a lot faster.
-      if(textDiv.textContent.length > 1) {
-          textDiv.dataset.canvasWidth =  style.vertical ?
-                    geom.height * this.viewport.scale:
-                    geom.width * this.viewport.scale;
       }
       return textDiv;
     },
@@ -230,13 +226,13 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
         var geom = textItems[i];
         var divi = textDivs[i];
         
-        var bottom  = geom.div.top + geom.div.height;
-        var right   = geom.div.left + geom.div.width;
+        var bottom  = geom.div_top + geom.height * this.viewport.scale;
+        var right   = geom.div_left + geom.width * this.viewport.scale;
         
         var far_right = geom.right !== null ?
-                          textItems[geom.right].div.left : page_w;
+                          textItems[geom.right].div_left : page_w;
         var far_bottom = geom.bottom !== null ?
-                          textItems[geom.bottom].div.top : page_h;
+                          textItems[geom.bottom].div_top : page_h;
         
         // Update Padding
         divi.style.paddingRight = (far_right - right) + 'px';
