@@ -127,19 +127,24 @@ var TextLayoutEvaluator = (function TextLayoutEvaluatorClosure() {
             top_obj = d;
         }
         // Find the first object to the right.
-        self.quadtree.retrieve_xinc(d.x+d.width,d.y,d.height, function (dr) {
-            if(dr.id !== d.id) {
-              d.right = dr.id;
-              return false;
-            }
-        });
+        var xinc = self.quadtree.retrieve_xinc(d.x+d.width,d.y,d.height);
+        do {
+          var dr = xinc.next();
+          if(dr && dr.id !== d.id) {
+            d.right = dr.id;
+            break;
+          }
+        } while(dr);
+        
         // Find the object directly below, subtract the height to move down.
-        self.quadtree.retrieve_ydec(d.x,d.y-d.height,d.width, function (db) {
-            if(db.id !== d.id) {
-              d.bottom = db.id;
-              return false;
-            }
-        });
+        var ydec = self.quadtree.retrieve_ydec(d.x,d.y-d.height,d.width);
+        do {
+          var db = ydec.next();
+          if(db && db.id !== d.id) {
+            d.bottom = db.id;
+            break;
+          }
+        } while(db);
       }
     }
   };
