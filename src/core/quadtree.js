@@ -93,14 +93,14 @@ var QuadTree = (function QuadTreeClosure() {
    * Iterate through the items from the left to the right as specified by the 
    * bounding box given by item: x, y, and height.
    */
-  QuadTree.prototype.retrieve_xinc = function (x,y,height, func) {
+  QuadTree.prototype.retrieve_xinc = function (x,y,height) {
     var it = {x:x, y:y, height:height, width:this.root.bounds.width-x};
     var sorter = function(a, b) {return a.x < b.x ? -1: (a.x>b.x?1:0);};
     var side1 = [QNode.TOP_LEFT, QNode.BOTTOM_LEFT];
     var side2 = [QNode.TOP_RIGHT, QNode.BOTTOM_RIGHT];
-    return this.root.retrieve_iterate(it, func, sorter, side1, side2, {});
+    return this.root.retrieve_iterate(it, sorter, side1, side2, {});
   };
-  QuadTree.prototype.retrieve_xdec = function (x,y,height, func) {
+  QuadTree.prototype.retrieve_xdec = function (x,y,height) {
     var x0 = this.root.bounds.x;
     var it = {x:x0, y:y, height:height, width:x-x0};
     var sorter = function(a, b) {
@@ -108,25 +108,25 @@ var QuadTree = (function QuadTreeClosure() {
       return ax < bx ? 1: (ax>bx?-1:0);};
     var side1 = [QNode.TOP_RIGHT, QNode.BOTTOM_RIGHT];
     var side2 = [QNode.TOP_LEFT, QNode.BOTTOM_LEFT];
-    return this.root.retrieve_iterate(it, func, sorter, side1, side2, {});
+    return this.root.retrieve_iterate(it, sorter, side1, side2, {});
   };
   
   /**
    * Iterate through the items from the top down as specified by the 
    * bounding box given by item: x, y, and width.
    */
-  QuadTree.prototype.retrieve_yinc = function (x,y,width, func) {
+  QuadTree.prototype.retrieve_yinc = function (x,y,width) {
     var it = {x:x, y:y, width:width, height:this.root.bounds.height-y};
     var sorter = function(a, b) { return a.y < b.y ? -1: (a.y>b.y?1:0); };
     var side1 = [QNode.TOP_LEFT,    QNode.TOP_RIGHT];
     var side2 = [QNode.BOTTOM_LEFT, QNode.BOTTOM_RIGHT];
-    return this.root.retrieve_iterate(it, func, sorter, side1, side2, {});
+    return this.root.retrieve_iterate(it, sorter, side1, side2, {});
   };
   /**
    * Iterate through the items from the down to up as specified by the 
    * lower left corner of the bounding box given by item: x, y, and width.
    */
-  QuadTree.prototype.retrieve_ydec = function (x,y,width, func) {
+  QuadTree.prototype.retrieve_ydec = function (x,y,width) {
     // When decreasing, we're given bottom left corner, convert to top right.
     var y0     = this.root.bounds.y;  // Calculate the top-left corner
     var it = {x:x, y:y0, width:width, height:y-y0};
@@ -136,7 +136,7 @@ var QuadTree = (function QuadTreeClosure() {
     };
     var side1 = [QNode.BOTTOM_LEFT, QNode.BOTTOM_RIGHT];
     var side2 = [QNode.TOP_LEFT,    QNode.TOP_RIGHT];
-    return this.root.retrieve_iterate(it, func, sorter, side1, side2, {});
+    return this.root.retrieve_iterate(it, sorter, side1, side2, {});
   };
   
   function QNode(bounds, depth, maxDepth, maxChildren) {
@@ -162,7 +162,7 @@ var QuadTree = (function QuadTreeClosure() {
   // Debugging
   QNode.prototype.print = function () {
     var tabs = '';
-    for(var d=0; d < this._depth; d++) {
+    for (var d=0; d < this._depth; d++) {
       tabs += ' ';
     }
     if (this.nodes !== null) {
@@ -173,7 +173,7 @@ var QuadTree = (function QuadTreeClosure() {
       txt[QNode.BOTTOM_LEFT]  = 'BOTTOM_LEFT';
       txt[QNode.BOTTOM_RIGHT] = 'BOTTOM_RIGHT';
       
-      for(var i=0; i<this.nodes.length; i++) {
+      for (var i=0; i<this.nodes.length; i++) {
           console.log(tabs + 'Depth ' + this._depth + ' ' + txt[i]);
           total_elements += this.nodes[i].print();
       }
@@ -189,7 +189,7 @@ var QuadTree = (function QuadTreeClosure() {
     if (this.nodes !== null) {
       // This is a node, insert into subnodes
       // We may need to insert into more than one if it straddles borders.
-      for(var i in this._findIndices(item)) {
+      for (var i in this._findIndices(item)) {
         this.nodes[i].insert(item);
       }
       return;
@@ -296,7 +296,7 @@ var QuadTree = (function QuadTreeClosure() {
   QNode.prototype.retrieve = function (item, ar, deduper) {
     if (this.nodes) {
       // Everything should be deduped, that takes place in the leaf node.
-      for(var i in this._findIndices(item)) {
+      for (var i in this._findIndices(item)) {
         this.nodes[i].retrieve(item, ar, deduper);
       }
       return ar;
@@ -306,7 +306,7 @@ var QuadTree = (function QuadTreeClosure() {
     var children_len = this.children.length;
     var it_x2 = item.x + item.width;
     var it_y2 = item.y + item.height;
-    for(var ci=0; ci < children_len; ci++) {
+    for (var ci=0; ci < children_len; ci++) {
       var c = this.children[ci];
       if (   item.x < c.x + c.width &&
             item.y < c.y + c.height &&
@@ -319,96 +319,116 @@ var QuadTree = (function QuadTreeClosure() {
     return ar;
   };
   
-  QNode.prototype.sort_and_callback = function (items, func, cmp) {
-    items.sort(cmp);
-    var subitems_len = items.length;
-    for(var j = 0; j < subitems_len; j++) {
-      var sub = items[j];
-      if (func(sub) === false) {
-        return false;
+  ///////////////////////////////
+  // Iteration
+  function NodeIterator(q, item, sorter, side1, side2, deduper) {
+    // Save this in case retrieve_iterate gets called differently.
+    this.indices = q._findIndices(item);
+    this.quad = q;
+    
+    // If only one iterator type is being used at once, these can be shared.
+    this.side1 = side1;
+    this.side2 = side2;
+    this.item = item;
+    this.sorter = sorter;
+    this.deduper = deduper;
+    
+    // Start with the first side, then move to the second
+    this.did_side2 = false;
+    // Build sub-iterators for the first side's two quandrants.
+    this.build_iterators(this.side1);
+    // Initialize the iterators to null
+    this.lastit0 = null;
+    this.lastit1 = null;
+  }
+  NodeIterator.prototype.build_iterators = function(s) {
+    // Build sub-iterators for the two of the quandrants.
+    this.it0 = this.indices[s[0]] ? this.quad.nodes[s[0]].retrieve_iterate(
+      this.item, this.sorter, this.side1, this.side2, this.deduper) : null;
+    this.it1 = this.indices[s[1]] ? this.quad.nodes[s[1]].retrieve_iterate(
+      this.item, this.sorter, this.side1, this.side2, this.deduper) : null;
+  };
+  NodeIterator.prototype.next = function() {
+    // Get the first item of the first two iterators
+    if (this.it0 && !this.lastit0) {
+      this.lastit0 = this.it0.next();
+    }
+    if (this.it1 && !this.lastit1) {
+      this.lastit1 = this.it1.next();
+    }
+    
+    var out;
+    if (this.lastit0 && this.lastit1) {
+      // There are elements in both iterators, return the first.
+      if (this.sorter(this.lastit0, this.lastit1) <= 0) {
+        out = this.lastit0;
+        this.lastit0 = null;
+      } else {
+        out = this.lastit1;
+        this.lastit1 = null;
+      }
+      return out;
+    } else if (this.lastit0) {
+      out = this.lastit0;
+      this.lastit0 = null;
+      return out;
+    } else if (this.lastit1) {
+      out = this.lastit1;
+      this.lastit1 = null;
+      return out;
+    }
+    
+    // Get the iterator for the other side if we have another side.
+    if (!this.did_side2) {
+      // Build sub-iterators for the second side's two quandrants.
+      this.build_iterators(this.side2);
+      this.did_side2 = true;
+      return this.next();
+    }
+    
+    // Nothing else to iterate.
+    return null;
+  };
+  function LeafIterator(item, children, deduper) {
+    this.children = children;
+    this.children_len = children.length;
+    this.it_x1 = item.x;
+    this.it_y1 = item.y;
+    this.it_x2 = item.x + item.width;
+    this.it_y2 = item.y + item.height;
+    this.ci = 0;
+    this.deduper = deduper;
+    return this;
+  }
+  LeafIterator.prototype.next = function() {
+    // Return the iterator that goes through all children.
+    while(this.ci < this.children_len) {
+      var c = this.children[this.ci];
+      this.ci++;
+      if (   this.it_x1 < c.x + c.width &&
+            this.it_y1 < c.y + c.height &&
+            this.it_x2 > c.x && this.it_y2 > c.y &&
+            !(c.id in this.deduper)) {
+        this.deduper[c.id] = true;
+        return c;
       }
     }
-    return true;
+    return null;
   };
   
   /**
-   * A fancier function to iterate through the items with increasing x pos.
-   * The worst case complexity of this function is O(NlogN) for a single 
-   * iteration, but it is usually much faster than that when the height is not
-   * very large and the likelihood of crossing a boundary is relatively small.
+   * A function that iterates through the items in any direction.
+   * Its complexity is O(logN) for a single iteration.
    */
-  QNode.prototype.retrieve_iterate = function (item, func,
+  QNode.prototype.retrieve_iterate = function (item,
                               sorter, side1, side2, deduper) {
     if (this.nodes) {
-      var indices = this._findIndices(item);
-      
-      // Handle the first side of the quandrants.
-      if (indices[side1[0]] && indices[side1[1]]) {
-        // We must retrieve all, sort them, and return one by one. 
-        // This can be improved by not looking at the entire width at once.
-        var sub_l = [];
-        this.nodes[side1[0]].retrieve(item, sub_l, deduper);
-        this.nodes[side1[1]].retrieve(item, sub_l, deduper);
-        if (!this.sort_and_callback(sub_l, func, sorter)) {
-          return false;
-        }
-      } else if (indices[side1[0]]) {
-        // We only need to look at one quartile.
-        if (!this.nodes[side1[0]].retrieve_iterate(item, func,
-              sorter, side1, side2, deduper)) {
-          return false;
-        }
-      } else if (indices[side1[1]]) {
-        // We only need to look at one quartile.
-        if (!this.nodes[side1[1]].retrieve_iterate(item, func,
-              sorter, side1, side2, deduper)) {
-          return false;
-        }
-      }
-      
-      // Handle the second side of the quadrants.
-      if (indices[side2[0]] && indices[side2[1]]) {
-        // We must retrieve all, sort them, and return one by one.
-        var sub_r = [];
-        this.nodes[side2[0]].retrieve(item, sub_r, deduper);
-        this.nodes[side2[1]].retrieve(item, sub_r, deduper);
-        if (!this.sort_and_callback(sub_r, func, sorter)) {
-          return false;
-        }
-      } else if (indices[side2[0]]) {
-        // We only need to look at one quartile.
-        if (!this.nodes[side2[0]].retrieve_iterate(item, func,
-              sorter, side1, side2, deduper)) {
-          return false;
-        }
-      } else if (indices[side2[1]]) {
-        // We only need to look at one quartile.
-        if (!this.nodes[side2[1]].retrieve_iterate(item, func,
-              sorter, side1, side2, deduper)) {
-          return false;
-        }
-      }
-      return true;
+      return new NodeIterator(this, item, sorter, side1, side2, deduper);
     }
     
-    // Go through children.
     this.children.sort(sorter);
-    var children_len = this.children.length;
-    var it_x2 = item.x + item.width;
-    var it_y2 = item.y + item.height;
-    for(var ci=0; ci < children_len; ci++) {
-      var c = this.children[ci];
-      if (   item.x < c.x + c.width &&
-            item.y < c.y + c.height &&
-            it_x2 > c.x && it_y2 > c.y &&
-            !(c.id in deduper)) {
-          if (func(c) === false) {
-            return false;
-          }
-          deduper[c.id] = true;
-      }
-    }
-    return true;
+    // Iterate through children.
+    return new LeafIterator(item, this.children, deduper);
   };
   
   return QuadTree;
