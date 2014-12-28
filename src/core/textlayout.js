@@ -106,7 +106,7 @@ var TextLayoutEvaluator = (function TextLayoutEvaluatorClosure() {
       var self = this;
       self.bounds = bounds;
       
-      // Put everything into the quadtree so it's fast to look things up.
+      // Put everything into the quadtree for O(logN) positional look ups.
       self.quadtree = new QuadTree(bounds, 4, 16);
       for (var i = 0, len = objs.length; i < len; i++) {
         self.addToQuadTree(objs[i], i, styles);
@@ -119,32 +119,45 @@ var TextLayoutEvaluator = (function TextLayoutEvaluatorClosure() {
       // element. The padding ensures that text selection works.
       for (i = 0; i < len; i++) {
         var d = objs[i];
-        var d_x2 = d.x + d.width;
-        var d_y2 = d.y + d.height;
         
-        // Keep track of the top most item.
+        // Track the top item. Not used yet, but can help reorder layout flow.
         if(!d.isWhitespace && (top_obj === null || d.y > top_obj.y)) {
             top_obj = d;
         }
-        // Find the first object to the right.
-        var xinc = self.quadtree.retrieve_xinc(d.x+d.width,d.y,d.height);
-        do {
-          var dr = xinc.next();
-          if(dr && dr.id !== d.id) {
-            d.right = dr.id;
-            break;
-          }
-        } while(dr);
         
-        // Find the object directly below, subtract the height to move down.
-        var ydec = self.quadtree.retrieve_ydec(d.x,d.y-d.height,d.width);
-        do {
-          var db = ydec.next();
-          if(db && db.id !== d.id) {
-            d.bottom = db.id;
+        var dn, it;
+        // Find the first object to the right.
+        it = self.quadtree.retrieve_xinc(d.x+d.width,d.y,d.height);
+        while(dn = it.next()) {
+          if(dn.id !== d.id) {
+            d.right = dn.id;
             break;
           }
-        } while(db);
+        }
+        // Find the left.
+        it = self.quadtree.retrieve_xdec(d.x,d.y,d.height);
+        while(dn = it.next()) {
+          if(dn.id !== d.id) {
+            d.left = dn.id;
+            break;
+          }
+        }
+        // Bottom
+        it = self.quadtree.retrieve_ydec(d.x,d.y-d.height,d.width);
+        while(dn = it.next()) {
+          if(dn.id !== d.id) {
+            d.bottom = dn.id;
+            break;
+          }
+        }
+        // Top
+        it = self.quadtree.retrieve_yinc(d.x,d.y,d.width);
+        while(dn = it.next()) {
+          if(dn.id !== d.id) {
+            d.top = dn.id;
+            break;
+          }
+        }
       }
     }
   };
