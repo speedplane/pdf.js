@@ -30,7 +30,7 @@
 
 /****************** QuadTree ****************
 *
-* A QuadTree implementation in JavaScript, a 2d spatial subdivision algorithm.
+* A QuadTree implementation in JavaScript that stores rectangular regions.
 * @module QuadTree
 **/
 var QuadTree = (function QuadTreeClosure() {
@@ -49,12 +49,14 @@ var QuadTree = (function QuadTreeClosure() {
       this.length = 0;
   }
   
-  // The root node of the QuadTree which covers the entire area being segmented.
+  // The root node of the QuadTree covers the entire area being segmented.
   QuadTree.prototype.root = null;
   QuadTree.prototype.length = 0;
   
   /**
   * Inserts an item into the QuadTree.
+  * Each element must have an id to uniquely identify it. We don't check to 
+  * make ensure that the element has already been added.
   **/
   QuadTree.prototype.insert = function (item) {
     if (item instanceof Array) {
@@ -112,8 +114,8 @@ var QuadTree = (function QuadTreeClosure() {
   };
   
   /**
-   * Iterate through the items from the top down as specified by the 
-   * bounding box given by item: x, y, and width.
+   * Iterate through the items with increasing y that intersect the box by: x, 
+   * y, and width.
    */
   QuadTree.prototype.retrieve_yinc = function (x,y,width) {
     var it = {x:x, y:y, width:width, height:this.root.bounds.height-y};
@@ -148,16 +150,14 @@ var QuadTree = (function QuadTreeClosure() {
     this._depth = depth || 0;
   }
   
-  // If these constants are changed, the array in subdivide must too.
+  // We consider "top" to be lower y values (screen coords), but if you're 
+  // using a different coord system, everything works. If these constants 
+  // change, the array in subdivide must too.
   QNode.TOP_LEFT     = 0;
   QNode.TOP_RIGHT    = 1;
   QNode.BOTTOM_LEFT  = 2;
   QNode.BOTTOM_RIGHT = 3;
   
-  // Collect and concatenate items retrieved so we don't create many new Array 
-  // instances. Copy the array when returned from QuadTree.retrieve
-  QNode.prototype._out = [];
-
   ///////////
   // Debugging
   QNode.prototype.print = function () {
@@ -212,7 +212,8 @@ var QuadTree = (function QuadTreeClosure() {
   };
 
   QNode.prototype._findIndices = function (item) {
-    // A rectangle can intersect up to four other rectangles. Be sure
+	// Given the item, return which of the four quadrents the item intersects.
+    // Can intersect up to four quadrants. Returns an assoc set.
     var b       = this.bounds;
     var bx      = b.x + b.width / 2;
     var by      = b.y + b.height / 2;
@@ -247,6 +248,8 @@ var QuadTree = (function QuadTreeClosure() {
   };
   
   QNode.prototype.subdivide = function () {
+	// Subdivides this node into four others.
+	// Does not redistribute the children.
     var depth = this._depth + 1;
 
     var bx = this.bounds.x;
@@ -289,7 +292,7 @@ var QuadTree = (function QuadTreeClosure() {
   ///////////////////////////////
   // Retrieval
   /**
-   * Internal retrieval function.
+   * Internal retrieval function. Retrieves all elements that intersect item.
    * ar       where we store the output.
    * deduper  a dictionary so we can keep track of duplicates.
    */
@@ -321,8 +324,9 @@ var QuadTree = (function QuadTreeClosure() {
   
   ///////////////////////////////
   // Iteration
+  // No matter which way you iterate, for a given node, you know that two of
+  // the quadrants will be iterated before the other two.
   function NodeIterator(q, item, sorter, side1, side2, deduper) {
-    // Save this in case retrieve_iterate gets called differently.
     this.indices = q._findIndices(item);
     this.quad = q;
     
@@ -342,14 +346,14 @@ var QuadTree = (function QuadTreeClosure() {
     this.lastit1 = null;
   }
   NodeIterator.prototype.build_iterators = function(s) {
-    // Build sub-iterators for the two of the quandrants.
+    // Build sub-iterators for two of the four quandrants. s indicates which 2.
     this.it0 = this.indices[s[0]] ? this.quad.nodes[s[0]].retrieve_iterate(
       this.item, this.sorter, this.side1, this.side2, this.deduper) : null;
     this.it1 = this.indices[s[1]] ? this.quad.nodes[s[1]].retrieve_iterate(
       this.item, this.sorter, this.side1, this.side2, this.deduper) : null;
   };
   NodeIterator.prototype.next = function() {
-    // Get the first item of the first two iterators
+    // Get the first item of the two iterators.
     if (this.it0 && !this.lastit0) {
       this.lastit0 = this.it0.next();
     }
@@ -377,7 +381,7 @@ var QuadTree = (function QuadTreeClosure() {
       this.lastit1 = null;
       return out;
     }
-    
+    // There are no more items left for the two iterators.
     // Get the iterator for the other side if we have another side.
     if (!this.did_side2) {
       // Build sub-iterators for the second side's two quandrants.
