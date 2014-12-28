@@ -94,26 +94,22 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
         if (width > 0) {
           var textItem = textItems[i];
           textLayerFrag.appendChild(textDiv);
-          var transform;
-          // Don't scale single-char text divs, because it has little effect on
-          // highlighting and makes scrolling lots of such divs a lot faster.
-          if(textItem.str.length > 1) {
-            // Dataset values come of type string.
-            var canvasWidth = textItem.vertical ?
-                    textItem.height * this.viewport.scale:
-                    textItem.width * this.viewport.scale;
-            var textScale = canvasWidth / width;
-            transform = 'scaleX(' + textScale + ')';
-          } else {
-            // Chrome creates selection padding artifacts if scaleX isn't set.
-            transform = 'scaleX(1.0)';
-          }
+          // Dataset values come of type string.
+          var canvasWidth = textItem.vertical ?
+              textItem.height * this.viewport.scale:
+              textItem.width * this.viewport.scale;
+          var textScale = canvasWidth / width;
+          // Always set scaleX. Chrome has selection padding artifacts if not.
+          var transform = 'scaleX(' + textScale + ')';
           var rotation = textDiv.dataset.angle;
           if (rotation) {
             transform = 'rotate(' + rotation + 'deg) ' + transform;
           }
-          if (transform) {
-            CustomStyle.setProp('transform' , textDiv, transform);
+          CustomStyle.setProp('transform' , textDiv, transform);
+          if (textItem.left === undefined && textDiv.style.left === '0px' &&
+                                              textScale !== 1.0) {
+            // Fix left padding, taking into account the text scaling.
+            textDiv.style.paddingLeft = textItem.div_left / textScale + 'px';
           }
         }
       }
@@ -215,6 +211,10 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
       // element. The padding ensures that text selection works.
       var page_w = this.textLayerDiv.offsetWidth;
       var page_h = this.textLayerDiv.offsetHeight;
+<<<<<<< HEAD
+=======
+      var scale  = this.viewport.scale;
+>>>>>>> 2337c41ec29ea2c025a4d573442c334fe578854a
       for (i = 0; i < len; i++) {
         var geom = textItems[i];
         var divi = textDivs[i];
@@ -224,19 +224,39 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
           continue;
         }
         
+<<<<<<< HEAD
         var bottom  = geom.div_top + geom.height * this.viewport.scale;
         var right   = geom.div_left + geom.width * this.viewport.scale;
+=======
+        var bottom  = geom.div_top + geom.height*scale;
+        var right   = geom.div_left + geom.width*scale;
+>>>>>>> 2337c41ec29ea2c025a4d573442c334fe578854a
         
         var far_right = geom.right !== null ?
                           textItems[geom.right].div_left : page_w;
         var far_bottom = geom.bottom !== null ?
                           textItems[geom.bottom].div_top : page_h;
+<<<<<<< HEAD
+=======
+// #if !PRODUCTION
+        // These values are very helpful for debugging.
+        divi.dataset.i = i;
+        divi.dataset.i_left = geom.left;
+        divi.dataset.i_right = geom.right;
+        divi.dataset.i_top = geom.top;
+        divi.dataset.i_bottom = geom.bottom;
+// #endif
+>>>>>>> 2337c41ec29ea2c025a4d573442c334fe578854a
         
         // Update Padding
         divi.style.paddingRight = (far_right - right) + 'px';
         divi.style.paddingBottom = (far_bottom - bottom) + 'px';
         // If there is nothing to the left, then pad to the left
         if (geom.left === undefined) {
+<<<<<<< HEAD
+=======
+          // This may be overriden in renderLayer to account for scaling.
+>>>>>>> 2337c41ec29ea2c025a4d573442c334fe578854a
           divi.style.paddingLeft = geom.div_left + 'px';
           divi.style.left = '0px';
         }
