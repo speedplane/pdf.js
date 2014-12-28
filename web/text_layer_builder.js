@@ -176,6 +176,9 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
       // Save info about the div in the geom for fast access.
       geom.div_left = left;
       geom.div_top = top;
+      if(angle) {
+        geom.div_angle = angle;
+      }
       geom.vertical = style.vertical ? true : false;
       
       textDiv.style.left = left + 'px';
@@ -216,6 +219,11 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
         var geom = textItems[i];
         var divi = textDivs[i];
         
+        if(geom.div_angle) {
+          // Angled text is more complex and outside the scope... for now.
+          continue;
+        }
+        
         var bottom  = geom.div_top + geom.height * this.viewport.scale;
         var right   = geom.div_left + geom.width * this.viewport.scale;
         
@@ -227,6 +235,16 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
         // Update Padding
         divi.style.paddingRight = (far_right - right) + 'px';
         divi.style.paddingBottom = (far_bottom - bottom) + 'px';
+        // If there is nothing to the left, then pad to the left
+        if (geom.left === undefined) {
+          divi.style.paddingLeft = geom.div_left + 'px';
+          divi.style.left = '0px';
+        }
+        // If there is nothing above us, then pad to the top
+        if (geom.top === undefined) {
+          divi.style.paddingTop = geom.div_top + 'px';
+          divi.style.top = '0px';
+        }
       }
       this.textDivs = textDivs;
       
