@@ -85,13 +85,9 @@ var TextLayoutEvaluator = (function TextLayoutEvaluatorClosure() {
         fontAscent = (1 + style.descent) * fontAscent;
       }
 
-      if (angle === 0) {
-        o.x = tx[4];
-        o.y = tx[5] - fontAscent;
-      } else {
-        o.x = tx[4] + (fontAscent * Math.sin(angle));
-        o.y = tx[5] - (fontAscent * Math.cos(angle));
-      }
+      // Set y,x to the bottom left. They're the smaller values.
+      o.y = tx[5];
+      o.x = (angle === 0) ? tx[4] : (tx[4] + (fontAscent * Math.sin(angle)));
       o.vertical = style.vertical;
       
       o.id = i;         // Used to uniquely identify object.
@@ -142,8 +138,22 @@ var TextLayoutEvaluator = (function TextLayoutEvaluatorClosure() {
             break;
           }
         }
+        
+        // If item has no right or left, its padding takes up the entire line.
+        var x = d.x;
+        var width = d.width;
+        if (d.left === undefined) {
+          // Add the space to the left.
+          x = bounds.x;
+          width += d.x;
+        }
+        if (d.right === null) {
+          // Add space to the right.
+          width += bounds.width - (d.x + d.width);
+        }
+        
         // Bottom
-        it = self.quadtree.retrieve_ydec(d.x,d.y-d.height,d.width);
+        it = self.quadtree.retrieve_ydec(x,d.y,width);
         while(dn = it.next()) {
           if(dn.id !== d.id) {
             d.bottom = dn.id;
@@ -151,7 +161,8 @@ var TextLayoutEvaluator = (function TextLayoutEvaluatorClosure() {
           }
         }
         // Top
-        it = self.quadtree.retrieve_yinc(d.x,d.y,d.width);
+        // We're looking for items above this item, so start from the top.
+        it = self.quadtree.retrieve_yinc(x,d.y+d.height,width);
         while(dn = it.next()) {
           if(dn.id !== d.id) {
             d.top = dn.id;

@@ -393,6 +393,21 @@ var QuadTree = (function QuadTreeClosure() {
     // Nothing else to iterate.
     return null;
   };
+  NodeIterator.prototype.debug_print = function(depth) {
+    if (depth === undefined) {
+      depth = 0;
+    }
+    var spaces = new Array(depth+2).join(' ');
+    console.log(spaces + 'Node Iterator depth ' + depth + ': ' +
+                (this.it0 ? 'with it0 ':'') + (this.it1 ? 'with it1 ':''));
+    console.log(spaces + '-> ' + this.side1 + ' | ' + this.side2);
+    if (this.it0) {
+      this.it0.debug_print(depth+1);
+    }
+    if (this.it1) {
+      this.it1.debug_print(depth+1);
+    }
+  };
   function LeafIterator(item, children, deduper) {
     this.children = children;
     this.children_len = children.length;
@@ -433,6 +448,14 @@ var QuadTree = (function QuadTreeClosure() {
     this.children.sort(sorter);
     // Iterate through children.
     return new LeafIterator(item, this.children, deduper);
+  };
+  LeafIterator.prototype.debug_print = function(depth) {
+    if (depth === undefined) {
+      depth = 0;
+    }
+    var spaces = new Array(depth).join(' ');
+    console.log(spaces + 'LeafIterator depth ' + depth + ': ' +
+                this.children.length + ' items');
   };
   
   return QuadTree;
