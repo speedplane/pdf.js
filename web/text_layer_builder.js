@@ -211,10 +211,7 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
       // element. The padding ensures that text selection works.
       var page_w = this.textLayerDiv.offsetWidth;
       var page_h = this.textLayerDiv.offsetHeight;
-<<<<<<< HEAD
-=======
       var scale  = this.viewport.scale;
->>>>>>> 2337c41ec29ea2c025a4d573442c334fe578854a
       for (i = 0; i < len; i++) {
         var geom = textItems[i];
         var divi = textDivs[i];
@@ -224,20 +221,13 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
           continue;
         }
         
-<<<<<<< HEAD
-        var bottom  = geom.div_top + geom.height * this.viewport.scale;
-        var right   = geom.div_left + geom.width * this.viewport.scale;
-=======
         var bottom  = geom.div_top + geom.height*scale;
         var right   = geom.div_left + geom.width*scale;
->>>>>>> 2337c41ec29ea2c025a4d573442c334fe578854a
         
         var far_right = geom.right !== null ?
                           textItems[geom.right].div_left : page_w;
         var far_bottom = geom.bottom !== null ?
                           textItems[geom.bottom].div_top : page_h;
-<<<<<<< HEAD
-=======
 // #if !PRODUCTION
         // These values are very helpful for debugging.
         divi.dataset.i = i;
@@ -246,17 +236,13 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
         divi.dataset.i_top = geom.top;
         divi.dataset.i_bottom = geom.bottom;
 // #endif
->>>>>>> 2337c41ec29ea2c025a4d573442c334fe578854a
         
         // Update Padding
         divi.style.paddingRight = (far_right - right) + 'px';
         divi.style.paddingBottom = (far_bottom - bottom) + 'px';
         // If there is nothing to the left, then pad to the left
         if (geom.left === undefined) {
-<<<<<<< HEAD
-=======
           // This may be overriden in renderLayer to account for scaling.
->>>>>>> 2337c41ec29ea2c025a4d573442c334fe578854a
           divi.style.paddingLeft = geom.div_left + 'px';
           divi.style.left = '0px';
         }
