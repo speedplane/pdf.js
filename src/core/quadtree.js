@@ -1,30 +1,21 @@
-/*jslint vars: true, nomen: true, plusplus: true, continue:true, forin:true */
+/*jslint vars:true, nomen:true, plusplus:true, continue:true, forin:true */
 /*global Node, QNode */
 
-/*
-
-  Copyright (c) 2014 Michael Sander (speedplane)
-  Based loosely on code written by (c) 2011 Mike Chambers.
-
-  The MIT License
-  Permission is hereby granted, free of charge, to any person obtaining a copy
-  of this software and associated documentation files (the "Software"), to deal
-  in the Software without restriction, including without limitation the rights
-  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-  copies of the Software, and to permit persons to whom the Software is
-  furnished to do so, subject to the following conditions:
-
-  The above copyright notice and this permission notice shall be included in
-  all copies or substantial portions of the Software.
-
-  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-  THE SOFTWARE.
-*/
+/**
+* Copyright (c) 2014 Michael Sander (speedplane)
+* Based loosely on code written by (c) 2011 Mike Chambers.
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+* 
+*     http://www.apache.org/licenses/LICENSE-2.0
+* 
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License. */
 
 'use strict';
 
@@ -60,13 +51,13 @@ var QuadTree = (function QuadTreeClosure() {
   **/
   QuadTree.prototype.insert = function (item) {
     if (item instanceof Array) {
-      for (var i = 0, len=item.length; i < len; i++) {
+      for (var i = 0, len = item.length; i < len; i++) {
         this.insert(item[i]);
       }
     } else {
       var b = this.root.bounds;
-      if (item.x >= b.x+b.width || item.x+item.width <= b.x ||
-          item.y >= b.y+b.height || item.y+item.height <= b.y) {
+      if (item.x >= b.x + b.width || item.x + item.width <= b.x ||
+          item.y >= b.y + b.height || item.y + item.height <= b.y) {
           // Can extend past the bounds, but must be at least partially in it.
           console.error('Failed QuadTree Bounds Check');
           return;
@@ -96,18 +87,22 @@ var QuadTree = (function QuadTreeClosure() {
    * bounding box given by item: x, y, and height.
    */
   QuadTree.prototype.retrieve_xinc = function (x,y,height) {
-    var it = {x:x, y:y, height:height, width:this.root.bounds.width-x};
-    var sorter = function(a, b) {return a.x < b.x ? -1: (a.x>b.x?1:0);};
+    var it = {x : x, y : y,
+            height : height, width : this.root.bounds.width - x};
+    var sorter = function(a, b) {
+      return a.x < b.x ? -1: (a.x > b.x ? 1 : 0);
+    };
     var side1 = [QNode.TOP_LEFT, QNode.BOTTOM_LEFT];
     var side2 = [QNode.TOP_RIGHT, QNode.BOTTOM_RIGHT];
     return this.root.retrieve_iterate(it, sorter, side1, side2, {});
   };
   QuadTree.prototype.retrieve_xdec = function (x,y,height) {
     var x0 = this.root.bounds.x;
-    var it = {x:x0, y:y, height:height, width:x-x0};
+    var it = {x : x0, y : y, height : height, width : x - x0};
     var sorter = function(a, b) {
-      var ax=a.x+a.width, bx=b.x+b.width;
-      return ax < bx ? 1: (ax>bx?-1:0);};
+      var ax = a.x + a.width, bx = b.x + b.width;
+      return ax < bx ? 1: (ax > bx ? -1 : 0);
+    };
     var side1 = [QNode.TOP_RIGHT, QNode.BOTTOM_RIGHT];
     var side2 = [QNode.TOP_LEFT, QNode.BOTTOM_LEFT];
     return this.root.retrieve_iterate(it, sorter, side1, side2, {});
@@ -118,8 +113,11 @@ var QuadTree = (function QuadTreeClosure() {
    * y, and width.
    */
   QuadTree.prototype.retrieve_yinc = function (x,y,width) {
-    var it = {x:x, y:y, width:width, height:this.root.bounds.height-y};
-    var sorter = function(a, b) { return a.y < b.y ? -1: (a.y>b.y?1:0); };
+    var it = {x : x, y : y,
+            width : width, height : this.root.bounds.height - y};
+    var sorter = function(a, b) {
+      return a.y < b.y ? -1: (a.y > b.y ? 1 : 0);
+    };
     var side1 = [QNode.TOP_LEFT,    QNode.TOP_RIGHT];
     var side2 = [QNode.BOTTOM_LEFT, QNode.BOTTOM_RIGHT];
     return this.root.retrieve_iterate(it, sorter, side1, side2, {});
@@ -130,11 +128,11 @@ var QuadTree = (function QuadTreeClosure() {
    */
   QuadTree.prototype.retrieve_ydec = function (x,y,width) {
     // When decreasing, we're given bottom left corner, convert to top right.
-    var y0     = this.root.bounds.y;  // Calculate the top-left corner
-    var it = {x:x, y:y0, width:width, height:y-y0};
+    var y0 = this.root.bounds.y;  // Calculate the top-left corner
+    var it = {x : x, y : y0, width : width, height : y - y0};
     var sorter = function(a, b) {
-        var ay=a.y+a.height, by=b.y+b.height;
-        return ay < by ? 1: (ay>by?-1:0);
+      var ay = a.y + a.height, by = b.y + b.height;
+      return ay < by ? 1: (ay > by ? -1 : 0);
     };
     var side1 = [QNode.BOTTOM_LEFT, QNode.BOTTOM_RIGHT];
     var side2 = [QNode.TOP_LEFT,    QNode.TOP_RIGHT];
@@ -142,9 +140,9 @@ var QuadTree = (function QuadTreeClosure() {
   };
   
   function QNode(bounds, depth, maxDepth, maxChildren) {
-    this.bounds   = bounds;  //  bounds
-    this.children = [];     // children contained directly in the node
-    this.nodes    = null;   // subnodes
+    this.bounds = bounds; //  bounds
+    this.children = []; // children contained directly in the node
+    this.nodes = null; // subnodes
     this._maxChildren = maxChildren || 4;
     this._maxDepth = maxDepth || 4;
     this._depth = depth || 0;
@@ -153,27 +151,27 @@ var QuadTree = (function QuadTreeClosure() {
   // We consider "top" to be lower y values (screen coords), but if you're 
   // using a different coord system, everything works. If these constants 
   // change, the array in subdivide must too.
-  QNode.TOP_LEFT     = 0;
-  QNode.TOP_RIGHT    = 1;
-  QNode.BOTTOM_LEFT  = 2;
+  QNode.TOP_LEFT = 0;
+  QNode.TOP_RIGHT = 1;
+  QNode.BOTTOM_LEFT = 2;
   QNode.BOTTOM_RIGHT = 3;
   
   ///////////
   // Debugging
   QNode.prototype.print = function () {
     var tabs = '';
-    for (var d=0; d < this._depth; d++) {
+    for (var d = 0; d < this._depth; d++) {
       tabs += ' ';
     }
     if (this.nodes !== null) {
-      var txt={};
+      var txt = {};
       var total_elements = 0;
-      txt[QNode.TOP_LEFT]     = 'TOP_LEFT';
-      txt[QNode.TOP_RIGHT]    = 'TOP_RIGHT';
-      txt[QNode.BOTTOM_LEFT]  = 'BOTTOM_LEFT';
+      txt[QNode.TOP_LEFT] = 'TOP_LEFT';
+      txt[QNode.TOP_RIGHT] = 'TOP_RIGHT';
+      txt[QNode.BOTTOM_LEFT] = 'BOTTOM_LEFT';
       txt[QNode.BOTTOM_RIGHT] = 'BOTTOM_RIGHT';
       
-      for (var i=0; i<this.nodes.length; i++) {
+      for (var i = 0; i < this.nodes.length; i++) {
           console.log(tabs + 'Depth ' + this._depth + ' ' + txt[i]);
           total_elements += this.nodes[i].print();
       }
@@ -214,9 +212,9 @@ var QuadTree = (function QuadTreeClosure() {
   QNode.prototype._findIndices = function (item) {
 	// Given the item, return which of the four quadrents the item intersects.
     // Can intersect up to four quadrants. Returns an assoc set.
-    var b       = this.bounds;
-    var bx      = b.x + b.width / 2;
-    var by      = b.y + b.height / 2;
+    var b = this.bounds;
+    var bx = b.x + b.width / 2;
+    var by = b.y + b.height / 2;
     
     var out = {};
     var below = false;
@@ -309,9 +307,9 @@ var QuadTree = (function QuadTreeClosure() {
     var children_len = this.children.length;
     var it_x2 = item.x + item.width;
     var it_y2 = item.y + item.height;
-    for (var ci=0; ci < children_len; ci++) {
+    for (var ci = 0; ci < children_len; ci++) {
       var c = this.children[ci];
-      if (   item.x < c.x + c.width &&
+      if (item.x < c.x + c.width &&
             item.y < c.y + c.height &&
             it_x2 > c.x && it_y2 > c.y &&
             !(c.id in deduper)) {
@@ -397,15 +395,15 @@ var QuadTree = (function QuadTreeClosure() {
     if (depth === undefined) {
       depth = 0;
     }
-    var spaces = new Array(depth+2).join(' ');
+    var spaces = new Array(depth + 2).join(' ');
     console.log(spaces + 'Node Iterator depth ' + depth + ': ' +
                 (this.it0 ? 'with it0 ':'') + (this.it1 ? 'with it1 ':''));
     console.log(spaces + '-> ' + this.side1 + ' | ' + this.side2);
     if (this.it0) {
-      this.it0.debug_print(depth+1);
+      this.it0.debug_print(depth + 1);
     }
     if (this.it1) {
-      this.it1.debug_print(depth+1);
+      this.it1.debug_print(depth + 1);
     }
   };
   function LeafIterator(item, children, deduper) {
@@ -421,7 +419,7 @@ var QuadTree = (function QuadTreeClosure() {
   }
   LeafIterator.prototype.next = function() {
     // Return the iterator that goes through all children.
-    while(this.ci < this.children_len) {
+    while (this.ci < this.children_len) {
       var c = this.children[this.ci];
       this.ci++;
       if (   this.it_x1 < c.x + c.width &&
