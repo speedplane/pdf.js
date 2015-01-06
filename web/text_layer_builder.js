@@ -22,12 +22,6 @@ var FIND_SCROLL_OFFSET_LEFT = -400;
 var MAX_TEXT_DIVS_TO_RENDER = 100000;
 var RENDER_DELAY = 200; // ms
 
-var NonWhitespaceRegexp = /\S/;
-
-function isAllWhitespace(str) {
-  return !NonWhitespaceRegexp.test(str);
-}
-
 /**
  * @typedef {Object} TextLayerBuilderOptions
  * @property {HTMLDivElement} textLayerDiv - The text layer container.
@@ -96,8 +90,8 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
           textLayerFrag.appendChild(textDiv);
           // Dataset values come of type string.
           var canvasWidth = textItem.vertical ?
-              textItem.height * this.viewport.scale:
-              textItem.width * this.viewport.scale;
+            textItem.height * this.viewport.scale:
+            textItem.width * this.viewport.scale;
           var textScale = canvasWidth / width;
           // Always set scaleX. Chrome has selection padding artifacts if not.
           var transform = 'scaleX(' + textScale + ')';
@@ -107,9 +101,9 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
           }
           CustomStyle.setProp('transform' , textDiv, transform);
           if (textItem.left === undefined && textDiv.style.left === '0px' &&
-                                              textScale !== 1.0) {
+              textScale !== 1.0) {
             // Fix left padding, taking into account the text scaling.
-            textDiv.style.paddingLeft = textItem.div_left / textScale + 'px';
+            textDiv.style.paddingLeft = textItem.divLeft / textScale + 'px';
           }
         }
       }
@@ -142,11 +136,6 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
     appendText: function TextLayerBuilder_appendText(geom, styles) {
       var style = styles[geom.fontName];
       var textDiv = document.createElement('div');
-      if (geom.isWhitespace || isAllWhitespace(geom.str)) {
-        // Whitespace elements aren't visible, but they're used for copy/paste.
-        geom.isWhitespace = true;
-        textDiv.className += ' whitespace';
-      }
       var tx = PDFJS.Util.transform(this.viewport.transform, geom.transform);
       var angle = Math.atan2(tx[1], tx[0]);
       if (style.vertical) {
@@ -170,10 +159,10 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
         top = tx[5] - (fontAscent * Math.cos(angle));
       }
       // Save info about the div in the geom for fast access.
-      geom.div_left = left;
-      geom.div_top = top;
-      if(angle) {
-        geom.div_angle = angle;
+      geom.divLeft = left;
+      geom.divTop = top;
+      if (angle) {
+        geom.divAngle = angle;
       }
       geom.vertical = style.vertical ? true : false;
       
@@ -209,46 +198,38 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
       
       // Set each element's padding to run to the nearest right and bottom 
       // element. The padding ensures that text selection works.
-      var page_w = this.textLayerDiv.offsetWidth;
-      var page_h = this.textLayerDiv.offsetHeight;
-      var scale  = this.viewport.scale;
+      var pageW = this.textLayerDiv.offsetWidth;
+      var pageH = this.textLayerDiv.offsetHeight;
+      var scale = this.viewport.scale;
       for (i = 0; i < len; i++) {
         var geom = textItems[i];
         var divi = textDivs[i];
         
-        if(geom.div_angle) {
+        if (geom.divAngle) {
           // Angled text is more complex and outside the scope... for now.
           continue;
         }
         
-        var bottom  = geom.div_top + geom.height*scale;
-        var right   = geom.div_left + geom.width*scale;
+        var bottom = geom.divTop + geom.height * scale;
+        var right = geom.divLeft + geom.width * scale;
         
-        var far_right = geom.right !== null ?
-                          textItems[geom.right].div_left : page_w;
-        var far_bottom = geom.bottom !== null ?
-                          textItems[geom.bottom].div_top : page_h;
-// #if !PRODUCTION
-        // These values are very helpful for debugging.
-        divi.dataset.i = i;
-        divi.dataset.i_left = geom.left;
-        divi.dataset.i_right = geom.right;
-        divi.dataset.i_top = geom.top;
-        divi.dataset.i_bottom = geom.bottom;
-// #endif
+        var farRight = geom.right !== null ?
+                        textItems[geom.right].divLeft : pageW;
+        var farBottom = geom.bottom !== null ?
+                         textItems[geom.bottom].divTop : pageH;
         
         // Update Padding
-        divi.style.paddingRight = (far_right - right) + 'px';
-        divi.style.paddingBottom = (far_bottom - bottom) + 'px';
+        divi.style.paddingRight = (farRight - right) + 'px';
+        divi.style.paddingBottom = (farBottom - bottom) + 'px';
         // If there is nothing to the left, then pad to the left
         if (geom.left === undefined) {
           // This may be overriden in renderLayer to account for scaling.
-          divi.style.paddingLeft = geom.div_left + 'px';
+          divi.style.paddingLeft = geom.divLeft + 'px';
           divi.style.left = '0px';
         }
         // If there is nothing above us, then pad to the top
         if (geom.top === undefined) {
-          divi.style.paddingTop = geom.div_top + 'px';
+          divi.style.paddingTop = geom.divTop + 'px';
           divi.style.top = '0px';
         }
       }
