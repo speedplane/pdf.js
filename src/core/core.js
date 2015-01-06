@@ -245,8 +245,8 @@ var Page = (function PageClosure() {
         return partialEvaluator.getTextContent(contentStream,
                   self.resources).then(function (data) {
           var mbox = self.getPageProp('MediaBox');
-          var bounds = {y:mbox[0], x:mbox[1],
-                        width:mbox[2], height:mbox[3]};
+          var bounds = {y : mbox[0], x : mbox[1],
+                        width : mbox[2], height : mbox[3]};
           var layout = new TextLayoutEvaluator();
           // The following will mutate data.items adding supplemental info.
           layout.calculateTextFlow(bounds, data.items, data.styles);
