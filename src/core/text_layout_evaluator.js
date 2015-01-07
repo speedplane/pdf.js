@@ -130,7 +130,7 @@ var TextLayoutEvaluator = (function TextLayoutEvaluatorClosure() {
         }
         // Top
         // We're looking for items above this item, so start from the top.
-        it = quadtreeForVert.retrieveYInc(x, obj.y + obj.height, 
+        it = quadtreeForVert.retrieveYInc(x, obj.y + obj.height,
                                           obj.totalWidth);
         while (objN = it.next()) {
           if (objN.id !== obj.id) {
