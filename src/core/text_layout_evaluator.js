@@ -79,6 +79,7 @@ var TextLayoutEvaluator = (function TextLayoutEvaluatorClosure() {
         while (objN = it.next()) {
           if (objN.id !== obj.id) {
             obj.right = objN.id;
+            // Note: if objN overlaps, then rightX1 may be < obj.x.
             rightX1 = objN.x;
             break;
           }
@@ -103,7 +104,7 @@ var TextLayoutEvaluator = (function TextLayoutEvaluatorClosure() {
         // Consider the padding we will be adding to the right.
         if (obj.right === null) {
           obj.totalWidth += bounds.width - (obj.x + obj.width);
-        } else {
+        } else if (rightX1 > obj.x + obj.width) {
           obj.totalWidth += rightX1 - (obj.x + obj.width);
         }
         
