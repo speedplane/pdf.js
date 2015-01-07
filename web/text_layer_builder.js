@@ -19,12 +19,6 @@
 
 var MAX_TEXT_DIVS_TO_RENDER = 100000;
 
-var NonWhitespaceRegexp = /\S/;
-
-function isAllWhitespace(str) {
-  return !NonWhitespaceRegexp.test(str);
-}
-
 /**
  * @typedef {Object} TextLayerBuilderOptions
  * @property {HTMLDivElement} textLayerDiv - The text layer container.
@@ -67,6 +61,7 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
     renderLayer: function TextLayerBuilder_renderLayer() {
       var textLayerFrag = document.createDocumentFragment();
       var textDivs = this.textDivs;
+      var textItems = this.textContent.items;
       var textDivsLength = textDivs.length;
       var canvas = document.createElement('canvas');
       var ctx = canvas.getContext('2d');
@@ -82,9 +77,6 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
       var lastFontFamily;
       for (var i = 0; i < textDivsLength; i++) {
         var textDiv = textDivs[i];
-        if (textDiv.dataset.isWhitespace !== undefined) {
-          continue;
-        }
 
         var fontSize = textDiv.style.fontSize;
         var fontFamily = textDiv.style.fontFamily;
@@ -98,21 +90,24 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
 
         var width = ctx.measureText(textDiv.textContent).width;
         if (width > 0) {
+          var textItem = textItems[i];
           textLayerFrag.appendChild(textDiv);
-          var transform;
-          if (textDiv.dataset.canvasWidth !== undefined) {
-            // Dataset values come of type string.
-            var textScale = textDiv.dataset.canvasWidth / width;
-            transform = 'scaleX(' + textScale + ')';
-          } else {
-            transform = '';
-          }
+          // Dataset values come of type string.
+          var canvasWidth = textItem.vertical ?
+            textItem.height * this.viewport.scale:
+            textItem.width * this.viewport.scale;
+          var textScale = canvasWidth / width;
+          // Always set scaleX. Chrome has selection padding artifacts if not.
+          var transform = 'scaleX(' + textScale + ')';
           var rotation = textDiv.dataset.angle;
           if (rotation) {
             transform = 'rotate(' + rotation + 'deg) ' + transform;
           }
-          if (transform) {
-            CustomStyle.setProp('transform' , textDiv, transform);
+          CustomStyle.setProp('transform' , textDiv, transform);
+          if (textItem.left === undefined && textDiv.style.left === '0px' &&
+              textScale !== 1.0) {
+            // Fix left padding, taking into account the text scaling.
+            textDiv.style.paddingLeft = textItem.divLeft / textScale + 'px';
           }
         }
       }
@@ -151,11 +146,6 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
     appendText: function TextLayerBuilder_appendText(geom, styles) {
       var style = styles[geom.fontName];
       var textDiv = document.createElement('div');
-      this.textDivs.push(textDiv);
-      if (isAllWhitespace(geom.str)) {
-        textDiv.dataset.isWhitespace = true;
-        return;
-      }
       var tx = PDFJS.Util.transform(this.viewport.transform, geom.transform);
       var angle = Math.atan2(tx[1], tx[0]);
       if (style.vertical) {
@@ -178,11 +168,18 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
         left = tx[4] + (fontAscent * Math.sin(angle));
         top = tx[5] - (fontAscent * Math.cos(angle));
       }
+      // Save info about the div in the geom for fast access.
+      geom.divLeft = left;
+      geom.divTop = top;
+      if (angle) {
+        geom.divAngle = angle;
+      }
+      geom.vertical = style.vertical ? true : false;
+      
       textDiv.style.left = left + 'px';
       textDiv.style.top = top + 'px';
       textDiv.style.fontSize = fontHeight + 'px';
       textDiv.style.fontFamily = style.fontFamily;
-
       textDiv.textContent = geom.str;
       // |fontName| is only used by the Font Inspector. This test will succeed
       // when e.g. the Font Inspector is off but the Stepper is on, but it's
@@ -194,25 +191,60 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
       if (angle !== 0) {
         textDiv.dataset.angle = angle * (180 / Math.PI);
       }
-      // We don't bother scaling single-char text divs, because it has very
-      // little effect on text highlighting. This makes scrolling on docs with
-      // lots of such divs a lot faster.
-      if (textDiv.textContent.length > 1) {
-        if (style.vertical) {
-          textDiv.dataset.canvasWidth = geom.height * this.viewport.scale;
-        } else {
-          textDiv.dataset.canvasWidth = geom.width * this.viewport.scale;
-        }
-      }
+      return textDiv;
     },
 
     setTextContent: function TextLayerBuilder_setTextContent(textContent) {
+      // This function will add the text divs and append them to the DOM
       this.textContent = textContent;
 
       var textItems = textContent.items;
-      for (var i = 0, len = textItems.length; i < len; i++) {
-        this.appendText(textItems[i], textContent.styles);
+      var len = textItems.length;
+      
+      var textDivs = []; // Just temporary
+      for (var i = 0; i < len; i++) {
+        textDivs.push(this.appendText(textItems[i], textContent.styles));
       }
+      
+      // Set each element's padding to run to the nearest right and bottom 
+      // element. The padding ensures that text selection works.
+      var pageW = this.textLayerDiv.offsetWidth;
+      var pageH = this.textLayerDiv.offsetHeight;
+      var scale = this.viewport.scale;
+      for (i = 0; i < len; i++) {
+        var geom = textItems[i];
+        var divi = textDivs[i];
+        
+        if (geom.divAngle) {
+          // Angled text is more complex and outside the scope... for now.
+          continue;
+        }
+        
+        var bottom = geom.divTop + geom.height * scale;
+        var right = geom.divLeft + geom.width * scale;
+        
+        var farRight = geom.right !== null ?
+                        textItems[geom.right].divLeft : pageW;
+        var farBottom = geom.bottom !== null ?
+                         textItems[geom.bottom].divTop : pageH;
+        
+        // Update Padding
+        divi.style.paddingRight = (farRight - right) + 'px';
+        divi.style.paddingBottom = (farBottom - bottom) + 'px';
+        // If there is nothing to the left, then pad to the left
+        if (geom.left === undefined) {
+          // This may be overriden in renderLayer to account for scaling.
+          divi.style.paddingLeft = geom.divLeft + 'px';
+          divi.style.left = '0px';
+        }
+        // If there is nothing above us, then pad to the top
+        if (geom.top === undefined) {
+          divi.style.paddingTop = geom.divTop + 'px';
+          divi.style.top = '0px';
+        }
+      }
+      this.textDivs = textDivs;
+      
       this.divContentDone = true;
     },
 
