@@ -25,7 +25,7 @@ var TextLayoutEvaluator = (function TextLayoutEvaluatorClosure() {
  
   TextLayoutEvaluator.prototype = {
     addToQuadTree:
-        function TextLayoutEvaluator_addToQuadTree(obj, id, styles) {
+        function TextLayoutEvaluator_addToQuadTree(quadtree, obj, id, styles) {
       var style = styles[obj.fontName];
       var tx = obj.transform;
       
@@ -51,62 +51,77 @@ var TextLayoutEvaluator = (function TextLayoutEvaluatorClosure() {
       obj.right = null;   // The nearest object to the right.
       obj.bottom = null;  // The nearest object to the bottom.
           
-      this.quadtree.insert(obj);
+      quadtree.insert(obj);
     },
     
     calculateTextFlow:
         function TextLayoutEvaluator_calculateTextFlow(bounds, objs, styles) {
-      var self = this;
-      self.bounds = bounds;
-      
-      // Put everything into the quadtree for O(logN) positional look ups.
-      self.quadtree = new QuadTree(bounds, 4, 16);
+      // Use two quadtrees. The first has objects as-is to determine left/right.
+      var quadtreeHoriz = new QuadTree(bounds, 4, 16);
+      // Populate the first
       for (var i = 0, len = objs.length; i < len; i++) {
-        self.addToQuadTree(objs[i], i, styles);
+        this.addToQuadTree(quadtreeHoriz, objs[i], i, styles);
       }
+      // The second is for vertical padding, taking into account left and right.
+      var quadtreeForVert = new QuadTree(bounds, 4, 16);
       
-      // Set each element's padding to run to the nearest right and bottom 
-      // element. The padding ensures that text selection works.
+      var it; // Use iterators to move over the quadtree
+      var obj; // Current item
+      var objN; // Temp storage for the "next" object.
+      // Set each element's padding to run to the nearest right element. 
       for (i = 0; i < len; i++) {
-        var obj = objs[i];
+        obj = objs[i];
         
-        // We use iterators to move over the quadtree
-        var it;
-        // Temp storage for the "next" object.
-        var objN;
-        
+        var rightX1 = null;
         // Find the first object to the right.
-        it = self.quadtree.retrieveXInc(obj.x + obj.width, obj.y, obj.height);
+        it = quadtreeHoriz.retrieveXInc(obj.x + obj.width, obj.y,
+                                             obj.height);
         while (objN = it.next()) {
           if (objN.id !== obj.id) {
             obj.right = objN.id;
+            rightX1 = objN.x;
             break;
           }
         }
         // Find the left.
-        it = self.quadtree.retrieveXDec(obj.x, obj.y, obj.height);
+        it = quadtreeHoriz.retrieveXDec(obj.x, obj.y, obj.height);
         while (objN = it.next()) {
           if (objN.id !== obj.id) {
             obj.left = objN.id;
             break;
           }
         }
-        
-        // If item has no right or left, its padding takes up the entire line.
         var x = obj.x;
-        var width = obj.width;
+        // Calculate the object's total width including padding we will add.
+        obj.totalWidth = obj.width;
+        // If item has no left, its padding goes all the way to the left.
         if (obj.left === undefined) {
           // Add the space to the left.
           x = bounds.x;
-          width += obj.x;
+          obj.totalWidth += obj.x;
         }
+        // Consider the padding we will be adding to the right.
         if (obj.right === null) {
-          // Add space to the right.
-          width += bounds.width - (obj.x + obj.width);
+          obj.totalWidth += bounds.width - (obj.x + obj.width);
+        } else {
+          obj.totalWidth += rightX1 - (obj.x + obj.width);
         }
         
+        // Add the object to the second quadtree, taking into account padding.
+        quadtreeForVert.insert({
+          id: obj.id,
+          x: x,
+          y: obj.y,
+          width: obj.totalWidth,
+          height: obj.height,
+        });
+      }
+      
+      // Perform another pass, this time determine the left and the right.
+      for (i = 0; i < len; i++) {
+        obj = objs[i];
         // Bottom
-        it = self.quadtree.retrieveYDec(x, obj.y, width);
+        it = quadtreeForVert.retrieveYDec(x, obj.y, obj.totalWidth);
         while (objN = it.next()) {
           if (objN.id !== obj.id) {
             obj.bottom = objN.id;
@@ -115,13 +130,16 @@ var TextLayoutEvaluator = (function TextLayoutEvaluatorClosure() {
         }
         // Top
         // We're looking for items above this item, so start from the top.
-        it = self.quadtree.retrieveYInc(x, obj.y + obj.height, width);
+        it = quadtreeForVert.retrieveYInc(x, obj.y + obj.height, 
+                                          obj.totalWidth);
         while (objN = it.next()) {
           if (objN.id !== obj.id) {
             obj.top = objN.id;
             break;
           }
         }
+        // This variable is no longer needed, remove it.
+        obj.totalWidth = undefined;
       }
     }
   };
