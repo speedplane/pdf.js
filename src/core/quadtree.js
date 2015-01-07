@@ -78,7 +78,7 @@ var QuadTree = (function QuadTreeClosure() {
   **/
   QuadTree.prototype.retrieve = function QuadTree_retrieve(item) {
     // Get a copy of the array of items
-    return this.root.retrieve(item, [], {});
+    return this.root.retrieve(item, [], { });
   };
   
   /**
@@ -87,26 +87,26 @@ var QuadTree = (function QuadTreeClosure() {
    */
   QuadTree.prototype.retrieveXInc =
       function QuadTree_retrieveXInc(x, y, height) {
-    var it = {x : x, y : y,
-            height : height, width : this.root.bounds.width - x};
+    var it = { x: x, y: y,
+            height: height, width: this.root.bounds.width - x };
     var sorter = function (a, b) {
-      return a.x < b.x ? -1: (a.x > b.x ? 1 : 0);
+      return a.x < b.x ? -1 : (a.x > b.x ? 1 : 0);
     };
     var side1 = [QNode.TOP_LEFT, QNode.BOTTOM_LEFT];
     var side2 = [QNode.TOP_RIGHT, QNode.BOTTOM_RIGHT];
-    return this.root.retrieveIterate(it, sorter, side1, side2, {});
+    return this.root.retrieveIterate(it, sorter, side1, side2, { });
   };
   QuadTree.prototype.retrieveXDec =
       function QuadTree_retrieveXDec(x, y, height) {
     var x0 = this.root.bounds.x;
-    var it = {x : x0, y : y, height : height, width : x - x0};
+    var it = { x: x0, y: y, height: height, width: x - x0 };
     var sorter = function (a, b) {
       var aX = a.x + a.width, bX = b.x + b.width;
-      return aX < bX ? 1: (aX > bX ? -1 : 0);
+      return aX < bX ? 1 : (aX > bX ? -1 : 0);
     };
     var side1 = [QNode.TOP_RIGHT, QNode.BOTTOM_RIGHT];
     var side2 = [QNode.TOP_LEFT, QNode.BOTTOM_LEFT];
-    return this.root.retrieveIterate(it, sorter, side1, side2, {});
+    return this.root.retrieveIterate(it, sorter, side1, side2, { });
   };
   
   /**
@@ -115,14 +115,14 @@ var QuadTree = (function QuadTreeClosure() {
    */
   QuadTree.prototype.retrieveYInc =
       function QuadTree_retrieveYInc(x, y, width) {
-    var it = {x : x, y : y,
-            width : width, height : this.root.bounds.height - y};
+    var it = { x: x, y: y,
+            width: width, height: this.root.bounds.height - y };
     var sorter = function (a, b) {
-      return a.y < b.y ? -1: (a.y > b.y ? 1 : 0);
+      return a.y < b.y ? -1 : (a.y > b.y ? 1 : 0);
     };
     var side1 = [QNode.TOP_LEFT, QNode.TOP_RIGHT];
     var side2 = [QNode.BOTTOM_LEFT, QNode.BOTTOM_RIGHT];
-    return this.root.retrieveIterate(it, sorter, side1, side2, {});
+    return this.root.retrieveIterate(it, sorter, side1, side2, { });
   };
   /**
    * Iterate through the items from the down to up as specified bY the 
@@ -132,14 +132,14 @@ var QuadTree = (function QuadTreeClosure() {
       function QuadTree_retrieveYDec(x, y, width) {
     // When decreasing, we're given bottom left corner, convert to top right.
     var y0 = this.root.bounds.y;  // Calculate the top-left corner
-    var it = {x : x, y : y0, width : width, height : y - y0};
+    var it = { x: x, y: y0, width: width, height: y - y0 };
     var sorter = function (a, b) {
       var aY = a.y + a.height, bY = b.y + b.height;
-      return aY < bY ? 1: (aY > bY ? -1 : 0);
+      return aY < bY ? 1 : (aY > bY ? -1 : 0);
     };
     var side1 = [QNode.BOTTOM_LEFT, QNode.BOTTOM_RIGHT];
     var side2 = [QNode.TOP_LEFT, QNode.TOP_RIGHT];
-    return this.root.retrieveIterate(it, sorter, side1, side2, {});
+    return this.root.retrieveIterate(it, sorter, side1, side2, { });
   };
   
   function QNode(bounds, depth, maxDepth, maxChildren) {
@@ -167,7 +167,7 @@ var QuadTree = (function QuadTreeClosure() {
       tabs += ' ';
     }
     if (this.nodes !== null) {
-      var txt = {};
+      var txt = { };
       var totalElements = 0;
       txt[QNode.TOP_LEFT] = 'TOP_LEFT';
       txt[QNode.TOP_RIGHT] = 'TOP_RIGHT';
@@ -218,7 +218,7 @@ var QuadTree = (function QuadTreeClosure() {
     var bX = b.x + ((b.width / 2) | 0);
     var bY = b.y + ((b.height / 2) | 0);
     
-    var out = {};
+    var out = { };
     var below = false;
     if (item.y < bY) {
       var right;
@@ -264,27 +264,27 @@ var QuadTree = (function QuadTreeClosure() {
     this.nodes = [
       // TOP_LEFT
       new QNode({
-        x : bX,
-        y : bY,
-        width : bHalfWidth, height : bHalfHeight
+        x: bX,
+        y: bY,
+        width: bHalfWidth, height: bHalfHeight
       }, depth, this.maxDepth, this.maxChildren),
       // TOP_RIGHT
       new QNode({
-          x : bXMid,
-          y : bY,
-          width : bHalfWidth, height : bHalfHeight
+        x: bXMid,
+        y: bY,
+        width: bHalfWidth, height: bHalfHeight
       }, depth, this.maxDepth, this.maxChildren),
       // BOTTOM_LEFT
       new QNode({
-          x : bX,
-          y : bYMid,
-          width : bHalfWidth, height : bHalfHeight
+        x: bX,
+        y: bYMid,
+        width: bHalfWidth, height: bHalfHeight
       }, depth, this.maxDepth, this.maxChildren),
       // BOTTOM_RIGHT
       new QNode({
-        x : bXMid,
-        y : bYMid,
-        width : bHalfWidth, height : bHalfHeight
+        x: bXMid,
+        y: bYMid,
+        width: bHalfWidth, height: bHalfHeight
       }, depth, this.maxDepth, this.maxChildren)
     ];
   };
@@ -312,11 +312,11 @@ var QuadTree = (function QuadTreeClosure() {
     for (var ci = 0; ci < childrenLen; ci++) {
       var c = this.children[ci];
       if (item.x < c.x + c.width &&
-            item.y < c.y + c.height &&
-            itX2 > c.x && itY2 > c.y &&
-            !(c.id in deduper)) {
-          deduper[c.id] = true;
-          ar.push(c);
+          item.y < c.y + c.height &&
+          itX2 > c.x && itY2 > c.y &&
+          !(c.id in deduper)) {
+        deduper[c.id] = true;
+        ar.push(c);
       }
     }
     return ar;
@@ -418,7 +418,8 @@ var QuadTree = (function QuadTreeClosure() {
     }
     var spaces = new Array(depth + 2).join(' ');
     console.log(spaces + 'Node Iterator depth ' + depth + ': ' +
-                (this.it0 ? 'with it0 ':'') + (this.it1 ? 'with it1 ':''));
+                (this.it0 ? 'with it0 ' : '') +
+                (this.it1 ? 'with it1 ' : ''));
     console.log(spaces + '-> ' + this.side1 + ' | ' + this.side2);
     if (this.it0) {
       this.it0.debugPrint(depth + 1);
@@ -443,10 +444,10 @@ var QuadTree = (function QuadTreeClosure() {
     while (this.ci < this.childrenLen) {
       var c = this.children[this.ci];
       this.ci++;
-      if (   this.itX1 < c.x + c.width &&
-            this.itY1 < c.y + c.height &&
-            this.itX2 > c.x && this.itY2 > c.y &&
-            !(c.id in this.deduper)) {
+      if (this.itX1 < c.x + c.width &&
+          this.itY1 < c.y + c.height &&
+          this.itX2 > c.x && this.itY2 > c.y &&
+          !(c.id in this.deduper)) {
         this.deduper[c.id] = true;
         return c;
       }
