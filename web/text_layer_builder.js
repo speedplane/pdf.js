@@ -88,7 +88,6 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
         if (width > 0) {
           var textItem = textItems[i];
           textLayerFrag.appendChild(textDiv);
-          // Dataset values come of type string.
           var canvasWidth = textItem.vertical ?
             textItem.height * this.viewport.scale:
             textItem.width * this.viewport.scale;
