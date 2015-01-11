@@ -50,20 +50,20 @@ var TextLayoutEvaluator = (function TextLayoutEvaluatorClosure() {
       obj.id = id;         // Used to uniquely identify object.
       obj.right = null;   // The nearest object to the right.
       obj.bottom = null;  // The nearest object to the bottom.
-          
+
+      // This insert may will fail if inserting an item outside of bounds. 
+      // That's okay, because it will not be displayed.
       quadtree.insert(obj);
     },
     
     calculateTextFlow:
         function TextLayoutEvaluator_calculateTextFlow(bounds, objs, styles) {
-      // Use two quadtrees. The first has objects as-is to determine left/right.
-      var quadtreeHoriz = new QuadTree(bounds, 4, 16);
+      // Use a quadtree to quickly lookup neighbors.
+      var quadtree = new QuadTree(bounds, 4, 16);
       // Populate the first
       for (var i = 0, len = objs.length; i < len; i++) {
-        this.addToQuadTree(quadtreeHoriz, objs[i], i, styles);
+        this.addToQuadTree(quadtree, objs[i], i, styles);
       }
-      // The second is for vertical padding, taking into account left and right.
-      var quadtreeForVert = new QuadTree(bounds, 4, 16);
       
       var it; // Use iterators to move over the quadtree
       var obj; // Current item
@@ -74,7 +74,7 @@ var TextLayoutEvaluator = (function TextLayoutEvaluatorClosure() {
         
         var rightX1 = null;
         // Find the first object to the right.
-        it = quadtreeHoriz.retrieveXInc(obj.x + obj.width, obj.y,
+        it = quadtree.retrieveXInc(obj.x + obj.width, obj.y,
                                              obj.height);
         while (objN = it.next()) {
           if (objN.id !== obj.id) {
@@ -85,44 +85,16 @@ var TextLayoutEvaluator = (function TextLayoutEvaluatorClosure() {
           }
         }
         // Find the left.
-        it = quadtreeHoriz.retrieveXDec(obj.x, obj.y, obj.height);
+        it = quadtree.retrieveXDec(obj.x, obj.y, obj.height);
         while (objN = it.next()) {
           if (objN.id !== obj.id) {
             obj.left = objN.id;
             break;
           }
         }
-        var x = obj.x;
-        // Calculate the object's total width including padding we will add.
-        obj.totalWidth = obj.width;
-        // If item has no left, its padding goes all the way to the left.
-        if (obj.left === undefined) {
-          // Add the space to the left.
-          x = bounds.x;
-          obj.totalWidth += obj.x;
-        }
-        // Consider the padding we will be adding to the right.
-        if (obj.right === null) {
-          obj.totalWidth += bounds.width - (obj.x + obj.width);
-        } else if (rightX1 > obj.x + obj.width) {
-          obj.totalWidth += rightX1 - (obj.x + obj.width);
-        }
         
-        // Add the object to the second quadtree, taking into account padding.
-        quadtreeForVert.insert({
-          id: obj.id,
-          x: x,
-          y: obj.y,
-          width: obj.totalWidth,
-          height: obj.height,
-        });
-      }
-      
-      // Perform another pass, this time determine the left and the right.
-      for (i = 0; i < len; i++) {
-        obj = objs[i];
         // Bottom
-        it = quadtreeForVert.retrieveYDec(x, obj.y, obj.totalWidth);
+        it = quadtree.retrieveYDec(obj.x, obj.y, obj.width);
         while (objN = it.next()) {
           if (objN.id !== obj.id) {
             obj.bottom = objN.id;
@@ -131,16 +103,13 @@ var TextLayoutEvaluator = (function TextLayoutEvaluatorClosure() {
         }
         // Top
         // We're looking for items above this item, so start from the top.
-        it = quadtreeForVert.retrieveYInc(x, obj.y + obj.height,
-                                          obj.totalWidth);
+        it = quadtree.retrieveYInc(obj.x, obj.y + obj.height, obj.width);
         while (objN = it.next()) {
           if (objN.id !== obj.id) {
             obj.top = objN.id;
             break;
           }
         }
-        // This variable is no longer needed, remove it.
-        obj.totalWidth = undefined;
       }
     }
   };
