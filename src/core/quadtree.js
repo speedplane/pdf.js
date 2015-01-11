@@ -58,11 +58,11 @@ var QuadTree = (function QuadTreeClosure() {
       if (item.x >= b.x + b.width || item.x + item.width <= b.x ||
           item.y >= b.y + b.height || item.y + item.height <= b.y) {
         // Can extend past the bounds, but must be at least partially in it.
-        console.error('Failed QuadTree Bounds Check');
-        return;
+        return false;
       }
       this.root.insert(item);
       this.length++;
+      return true;
     }
   };
   QuadTree.prototype.print = function QuadTree_print() {
