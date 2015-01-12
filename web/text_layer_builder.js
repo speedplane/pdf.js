@@ -149,7 +149,7 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
         geom.divAngle = angle;
       }
       geom.vertical = style.vertical ? true : false;
-      geom.textScale = (geom.vertical ? geom.height : geom.width ) / 
+      geom.textScale = (geom.vertical ? geom.height : geom.width ) /
         (ctx.ctx.measureText(geom.str).width / this.viewport.scale);
             
       textDiv.style.left = left + 'px';
