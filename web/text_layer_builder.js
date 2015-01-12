@@ -138,11 +138,9 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
       if (angle) {
         geom.divAngle = angle;
       }
-      var measuredWidth = ctx.ctx.measureText(geom.str).width /
-        this.viewport.scale;
       geom.vertical = style.vertical ? true : false;
-      geom.textScale = (geom.vertical ? geom.height : geom.width ) /
-        geom.measuredWidth;
+      geom.textScale = (geom.vertical ? geom.height : geom.width ) / 
+        (ctx.ctx.measureText(geom.str).width / this.viewport.scale);
             
       textDiv.style.left = left + 'px';
       textDiv.style.top = top + 'px';
@@ -199,12 +197,6 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
           // Angled text is more complex and outside the scope... for now.
           continue;
         }
-        
-        divi.dataset.i = i;
-        divi.dataset.i_right = geom.right;
-        divi.dataset.i_left = geom.left;
-        divi.dataset.i_top = geom.top;
-        divi.dataset.i_bottom = geom.bottom;
         
         var bottom = geom.divTop + geom.height * scale;
         var right = geom.divLeft + geom.width * scale;
