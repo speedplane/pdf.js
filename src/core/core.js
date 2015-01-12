@@ -248,7 +248,7 @@ var Page = (function PageClosure() {
           var mbox = self.getPageProp('MediaBox');
           if (!mbox || mbox.length < 4) {
              // Sometimes 'MediaBox' is undefined for some odd reason in PDFs.
-            return null;
+            return;
           }
           var bounds = { y: mbox[0], x: mbox[1],
                         width: mbox[2], height: mbox[3] };
