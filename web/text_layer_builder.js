@@ -193,42 +193,43 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
       for (var i = 0; i < len; i++) {
         textDivs.push(this.appendText(textItems[i], textContent.styles, ctx));
       }
-      
-      // Set each element's padding to run to the nearest right and bottom 
-      // element. The padding ensures that text selection works.
-      var pageW = this.textLayerDiv.offsetWidth;
-      var pageH = this.textLayerDiv.offsetHeight;
-      var scale = this.viewport.scale;
-      for (i = 0; i < len; i++) {
-        var geom = textItems[i];
-        var divi = textDivs[i];
-        
-        if (geom.divAngle) {
-          // Angled text is more complex and outside the scope... for now.
-          continue;
-        }
-        
-        var bottom = geom.divTop + geom.height * scale;
-        var right = geom.divLeft + geom.width * scale;
-        
-        var farRight = geom.right !== null ?
-                        textItems[geom.right].divLeft : pageW;
-        var farBottom = geom.bottom !== null ?
-                         textItems[geom.bottom].divTop : pageH;
-        
-        // Update Padding
-        divi.style.paddingRight = (farRight - right) / geom.textScale + 'px';
-        divi.style.paddingBottom = (farBottom - bottom) + 'px';
-        // If there is nothing to the left, then pad to the left
-        if (geom.left === undefined) {
-          // Fix left padding, taking into account the text scaling.
-          divi.style.paddingLeft = geom.divLeft / geom.textScale + 'px';
-          divi.style.left = '0px';
-        }
-        // If there is nothing above us, then pad to the top
-        if (geom.top === undefined) {
-          divi.style.paddingTop = geom.divTop + 'px';
-          divi.style.top = '0px';
+      if (textContent.padded === true) {
+        // Set each element's padding to run to the nearest right and bottom 
+        // element. The padding ensures that text selection works.
+        var pageW = this.textLayerDiv.offsetWidth;
+        var pageH = this.textLayerDiv.offsetHeight;
+        var scale = this.viewport.scale;
+        for (i = 0; i < len; i++) {
+          var geom = textItems[i];
+          var divi = textDivs[i];
+          
+          if (geom.divAngle) {
+            // Angled text is more complex and outside the scope... for now.
+            continue;
+          }
+          
+          var bottom = geom.divTop + geom.height * scale;
+          var right = geom.divLeft + geom.width * scale;
+          
+          var farRight = geom.right !== null ?
+                          textItems[geom.right].divLeft : pageW;
+          var farBottom = geom.bottom !== null ?
+                           textItems[geom.bottom].divTop : pageH;
+          
+          // Update Padding
+          divi.style.paddingRight = (farRight - right) / geom.textScale + 'px';
+          divi.style.paddingBottom = (farBottom - bottom) + 'px';
+          // If there is nothing to the left, then pad to the left
+          if (geom.left === undefined) {
+            // Fix left padding, taking into account the text scaling.
+            divi.style.paddingLeft = geom.divLeft / geom.textScale + 'px';
+            divi.style.left = '0px';
+          }
+          // If there is nothing above us, then pad to the top
+          if (geom.top === undefined) {
+            divi.style.paddingTop = geom.divTop + 'px';
+            divi.style.top = '0px';
+          }
         }
       }
       this.textDivs = textDivs;
