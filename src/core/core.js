@@ -248,13 +248,14 @@ var Page = (function PageClosure() {
           var mbox = self.getPageProp('MediaBox');
           if (!mbox || mbox.length < 4) {
              // Sometimes 'MediaBox' is undefined for some odd reason in PDFs.
-            return;
+            return data;
           }
           var bounds = { y: mbox[0], x: mbox[1],
                         width: mbox[2], height: mbox[3] };
           var layout = new TextLayoutEvaluator();
           // The following will mutate data.items adding supplemental info.
           layout.calculateTextFlow(bounds, data.items, data.styles);
+          data.padded = true;
           return data;
         });
       });
