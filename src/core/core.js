@@ -245,17 +245,11 @@ var Page = (function PageClosure() {
         return partialEvaluator.getTextContent(contentStream,
                                               self.resources).then(
             function (data) {
-          var mbox = self.getPageProp('MediaBox');
-          if (!mbox || mbox.length < 4) {
-             // Sometimes 'MediaBox' is undefined for some odd reason in PDFs.
-            return data;
-          }
-          var bounds = { y: mbox[0], x: mbox[1],
-                        width: mbox[2], height: mbox[3] };
+          var bounds = { y: self.mediaBox[0], x: self.mediaBox[1],
+                        width: self.mediaBox[2], height: self.mediaBox[3] };
           var layout = new TextLayoutEvaluator();
           // The following will mutate data.items adding supplemental info.
           layout.calculateTextFlow(bounds, data.items, data.styles);
-          data.padded = true;
           return data;
         });
       });
