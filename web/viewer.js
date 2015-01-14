@@ -46,10 +46,10 @@ PDFJS.imageResourcesPath = './images/';
 //PDFJS.workerSrc = '/site_media/pdfjs/pdf.worker.js';
 //#endif
 //#if !PRODUCTION
-PDFJS.cMapUrl = '../external/bcmaps/';
+PDFJS.cMapUrl = '/site_media/pdfjsviewer/cmaps/';
 PDFJS.cMapPacked = true;
 //#else
-//PDFJS.cMapUrl = './cmaps/';
+//PDFJS.cMapUrl = '/site_media/pdfjsviewer/cmaps/';
 //PDFJS.cMapPacked = true;
 //#endif
 
