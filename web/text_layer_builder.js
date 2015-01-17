@@ -207,7 +207,7 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
         
         // Update Padding
         divi.style.paddingRight = (farRight - right) / geom.textScale + 'px';
-        divi.style.paddingBottom = (farBottom - bottom) + 'px';
+        divi.style.paddingBottom = (farBottom - bottom) / geom.textScale + 'px';
         // If there is nothing to the left, then pad to the left
         if (geom.left === undefined) {
           // Fix left padding, taking into account the text scaling.
@@ -216,7 +216,7 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
         }
         // If there is nothing above us, then pad to the top
         if (geom.top === undefined) {
-          divi.style.paddingTop = geom.divTop + 'px';
+          divi.style.paddingTop = geom.divTop / geom.textScale + 'px';
           divi.style.top = '0px';
         }
       }
