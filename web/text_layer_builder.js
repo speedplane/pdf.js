@@ -145,7 +145,6 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
       // Save info about the div in the geom for fast access.
       geom.divLeft = left;
       geom.divTop = top;
-      geom.fontHeight = fontHeight;
       if (angle) {
         geom.divAngle = angle;
       }
@@ -189,7 +188,8 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
         lastFontHeight: null,
         lastFontFamily: null,
       };
-      
+      // Set in viewer.css.
+      var LINE_HEIGHT = 1.14;
       var textDivs = []; // Just temporary
       for (var i = 0; i < len; i++) {
         textDivs.push(this.appendText(textItems[i], textContent.styles, ctx));
@@ -208,7 +208,7 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
           continue;
         }
         
-        var bottom = geom.divTop + (geom.fontHeight) * scale;
+        var bottom = geom.divTop + geom.height * scale * LINE_HEIGHT;
         var right = geom.divLeft + geom.width * scale;
         
         var farRight = geom.right !== null ?
@@ -224,14 +224,18 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
           // Fix left padding, taking into account the text scaling.
           divi.style.paddingLeft = geom.divLeft / geom.textScale + 'px';
           divi.style.left = '0px';
-        } else if(textItems[geom.left].right !== i) {
-          // The object to the left is too tall to extend its right padding to 
-          // this object. So his object should extend its left padding to it.
-          var farLeft = textItems[geom.left].divLeft +
-            textItems[geom.left].width;
-          divi.style.left = farLeft + 'px';
-          divi.style.paddingLeft = (geom.divLeft - farLeft) /
-            geom.textScale + 'px';
+        } else {
+          var leftItem = textItems[geom.left];
+          if (leftItem.right !== i && leftItem.divTop <= geom.divTop &&
+              leftItem.divTop + leftItem.height * scale * LINE_HEIGHT 
+              >= bottom) {
+            // The object to the left is too tall to extend its right padding to 
+            // this object. So this object should extend its left padding to it.
+            var farLeft = leftItem.divLeft + leftItem.width;
+            divi.style.left = farLeft + 'px';
+            divi.style.paddingLeft = (geom.divLeft - farLeft) /
+              geom.textScale + 'px';
+          }
         }
         // If there is nothing above us, then pad to the top
         if (geom.top === undefined) {
