@@ -104,10 +104,14 @@ var TextLayoutEvaluator = (function TextLayoutEvaluatorClosure() {
             // There is nothing underneath, it starts on the bottom
             obj.fullY = bounds.y;
             obj.fullHeight += obj.y - bounds.y;
-        } else if(objs[obj.bottom].y < obj.y) {
-            // There is an item underneath, extend our bottom to its top
+        } else if(objs[obj.bottom].y + objs[obj.bottom].height <= obj.y) {
+            // There is an item underneath, extend our bottom to its top.
             obj.fullY = objs[obj.bottom].y + objs[obj.bottom].height;
             obj.fullHeight += obj.y - obj.fullY;
+        } else {
+            // This item overlaps another beneath it. We won't pad it.
+            obj.fullY = obj.y;
+            obj.fullHeight = obj.height;
         }
         
         quadtree_horiz.insert({
@@ -122,20 +126,21 @@ var TextLayoutEvaluator = (function TextLayoutEvaluatorClosure() {
       // Iterate over the items in the second quadtree to find right/left objs.
       for (i = 0; i < len; i++) {
         obj = objs[i];
+        var right = obj.x + obj.width;
         
-        // Find the first object to the right.
-        it = quadtree_horiz.retrieveXInc(obj.x + obj.width, obj.fullY,
-                                             obj.fullHeight);
+        // Find the first object to the right. Start looking from the left 
+        // edge so we catch any overlapping items.
+        it = quadtree_horiz.retrieveXInc(obj.x , obj.fullY, obj.fullHeight);
         while (objN = it.next()) {
-          if (objN.id !== obj.id) {
+          if (objN.id !== obj.id && objN.x + objN.width > right) {
             obj.right = objN.id;
             break;
           }
         }
-        // Find the left.
-        it = quadtree_horiz.retrieveXDec(obj.x, obj.fullY, obj.fullHeight);
+        // Find the left item. Start from the right edge to find overlaps.
+        it = quadtree_horiz.retrieveXDec(right, obj.fullY, obj.fullHeight);
         while (objN = it.next()) {
-          if (objN.id !== obj.id) {
+          if (objN.id !== obj.id && objN.x < obj.x) {
             obj.left = objN.id;
             break;
           }
