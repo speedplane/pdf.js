@@ -71,20 +71,21 @@ var TextLayoutEvaluator = (function TextLayoutEvaluatorClosure() {
       
       for (i = 0; i < len; i++) {
         obj = objs[i];
+        var top = obj.y + obj.height;
         
         // Bottom
-        it = quadtree_vert.retrieveYDec(obj.x, obj.y, obj.width);
+        it = quadtree_vert.retrieveYDec(obj.x, top, obj.width);
         while (objN = it.next()) {
-          if (objN.id !== obj.id) {
+          if (objN.id !== obj.id && objN.y < obj.y) {
             obj.bottom = objN.id;
             break;
           }
         }
         // Top
-        // We're looking for items above this item, so start from the top.
-        it = quadtree_vert.retrieveYInc(obj.x, obj.y + obj.height, obj.width);
+        // We're looking for items above this item, so start from the bottom.
+        it = quadtree_vert.retrieveYInc(obj.x, obj.y, obj.width);
         while (objN = it.next()) {
-          if (objN.id !== obj.id) {
+          if (objN.id !== obj.id && objN.y + objN.height > top) {
             obj.top = objN.id;
             break;
           }
