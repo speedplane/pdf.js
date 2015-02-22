@@ -145,6 +145,7 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
       // Save info about the div in the geom for fast access.
       geom.divLeft = left;
       geom.divTop = top;
+      geom.fontHeight = fontHeight;
       if (angle) {
         geom.divAngle = angle;
       }
@@ -207,7 +208,7 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
           continue;
         }
         
-        var bottom = geom.divTop + geom.height * scale;
+        var bottom = geom.divTop + (geom.fontHeight) * scale;
         var right = geom.divLeft + geom.width * scale;
         
         var farRight = geom.right !== null ?
@@ -215,18 +216,26 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
         var farBottom = geom.bottom !== null ?
                          textItems[geom.bottom].divTop : pageH;
         
-        // Update Padding
+        // Update Padding. Apply textScale as appropriate (horizontal only).
         divi.style.paddingRight = (farRight - right) / geom.textScale + 'px';
-        divi.style.paddingBottom = (farBottom - bottom) / geom.textScale + 'px';
+        divi.style.paddingBottom = (farBottom - bottom) + 'px';
         // If there is nothing to the left, then pad to the left
         if (geom.left === undefined) {
           // Fix left padding, taking into account the text scaling.
           divi.style.paddingLeft = geom.divLeft / geom.textScale + 'px';
           divi.style.left = '0px';
+        } else if(textItems[geom.left].right !== i) {
+          // The object to the left is too tall to extend its right padding to 
+          // this object. So his object should extend its left padding to it.
+          var farLeft = textItems[geom.left].divLeft +
+            textItems[geom.left].width;
+          divi.style.left = farLeft + 'px';
+          divi.style.paddingLeft = (geom.divLeft - farLeft) /
+            geom.textScale + 'px';
         }
         // If there is nothing above us, then pad to the top
         if (geom.top === undefined) {
-          divi.style.paddingTop = geom.divTop / geom.textScale + 'px';
+          divi.style.paddingTop = geom.divTop + 'px';
           divi.style.top = '0px';
         }
       }

@@ -58,43 +58,22 @@ var TextLayoutEvaluator = (function TextLayoutEvaluatorClosure() {
     
     calculateTextFlow:
         function TextLayoutEvaluator_calculateTextFlow(bounds, objs, styles) {
-      // Use a quadtree to quickly lookup neighbors.
-      var quadtree = new QuadTree(bounds, 4, 16);
-      // Populate the first
-      for (var i = 0, len = objs.length; i < len; i++) {
-        this.addToQuadTree(quadtree, objs[i], i, styles);
-      }
-      
       var it; // Use iterators to move over the quadtree
       var obj; // Current item
       var objN; // Temp storage for the "next" object.
-      // Set each element's padding to run to the nearest right element. 
+      
+      // Use a quadtree to quickly lookup neighbors.
+      var quadtree_vert = new QuadTree(bounds, 4, 16);
+      // Populate the first
+      for (var i = 0, len = objs.length; i < len; i++) {
+        this.addToQuadTree(quadtree_vert, objs[i], i, styles);
+      }
+      
       for (i = 0; i < len; i++) {
         obj = objs[i];
         
-        var rightX1 = null;
-        // Find the first object to the right.
-        it = quadtree.retrieveXInc(obj.x + obj.width, obj.y,
-                                             obj.height);
-        while (objN = it.next()) {
-          if (objN.id !== obj.id) {
-            obj.right = objN.id;
-            // Note: if objN overlaps, then rightX1 may be < obj.x.
-            rightX1 = objN.x;
-            break;
-          }
-        }
-        // Find the left.
-        it = quadtree.retrieveXDec(obj.x, obj.y, obj.height);
-        while (objN = it.next()) {
-          if (objN.id !== obj.id) {
-            obj.left = objN.id;
-            break;
-          }
-        }
-        
         // Bottom
-        it = quadtree.retrieveYDec(obj.x, obj.y, obj.width);
+        it = quadtree_vert.retrieveYDec(obj.x, obj.y, obj.width);
         while (objN = it.next()) {
           if (objN.id !== obj.id) {
             obj.bottom = objN.id;
@@ -103,13 +82,68 @@ var TextLayoutEvaluator = (function TextLayoutEvaluatorClosure() {
         }
         // Top
         // We're looking for items above this item, so start from the top.
-        it = quadtree.retrieveYInc(obj.x, obj.y + obj.height, obj.width);
+        it = quadtree_vert.retrieveYInc(obj.x, obj.y + obj.height, obj.width);
         while (objN = it.next()) {
           if (objN.id !== obj.id) {
             obj.top = objN.id;
             break;
           }
         }
+      }
+      quadtree_vert = undefined; // Done with this structure, help the GC.
+      
+      // Build a second quadtree taking into account the fact that we will
+      // extend the objects height to reach the nearest neighbors.
+      var quadtree_horiz = new QuadTree(bounds, 4, 16);
+      // Populate the first
+      for (i = 0; i < len; i++) {
+        obj = objs[i];
+        
+        obj.fullHeight = obj.height;
+        if (obj.bottom === null) {
+            // There is nothing underneath, it starts on the bottom
+            obj.fullY = bounds.y;
+            obj.fullHeight += obj.y - bounds.y;
+        } else if(objs[obj.bottom].y < obj.y) {
+            // There is an item underneath, extend our bottom to its top
+            obj.fullY = objs[obj.bottom].y + objs[obj.bottom].height;
+            obj.fullHeight += obj.y - obj.fullY;
+        }
+        
+        quadtree_horiz.insert({
+          x: obj.x,
+          y: obj.fullY,
+          width: obj.width,
+          height: obj.fullHeight,
+          id: obj.id
+        });
+      }
+      
+      // Iterate over the items in the second quadtree to find right/left objs.
+      for (i = 0; i < len; i++) {
+        obj = objs[i];
+        
+        // Find the first object to the right.
+        it = quadtree_horiz.retrieveXInc(obj.x + obj.width, obj.fullY,
+                                             obj.fullHeight);
+        while (objN = it.next()) {
+          if (objN.id !== obj.id) {
+            obj.right = objN.id;
+            break;
+          }
+        }
+        // Find the left.
+        it = quadtree_horiz.retrieveXDec(obj.x, obj.fullY, obj.fullHeight);
+        while (objN = it.next()) {
+          if (objN.id !== obj.id) {
+            obj.left = objN.id;
+            break;
+          }
+        }
+        
+        // Remove these variables that are no longer needed.
+        obj.fullY = undefined;
+        obj.fullHeight = undefined;
       }
     }
   };
