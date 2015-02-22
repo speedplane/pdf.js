@@ -226,12 +226,14 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
           divi.style.left = '0px';
         } else {
           var leftItem = textItems[geom.left];
-          if (leftItem.right !== i && leftItem.divTop <= geom.divTop &&
-              leftItem.divTop + leftItem.height * scale * LINE_HEIGHT 
-              >= bottom) {
-            // The object to the left is too tall to extend its right padding to 
-            // this object. So this object should extend its left padding to it.
-            var farLeft = leftItem.divLeft + leftItem.width;
+          if (leftItem.right !== null && leftItem.right !== i &&
+              leftItem.divTop <= geom.divTop && (leftItem.bottom === null ||
+              textItems[leftItem.bottom].divTop >= bottom)) {
+            // The left object is too tall for its right padding to reach this 
+            // object. This object should extend its left padding to the right 
+            // padding of the left-most object.
+            var farLeft = textItems[leftItem.right].divLeft;
+            // No text scaling here because scaling is based on the left.
             divi.style.left = farLeft + 'px';
             divi.style.paddingLeft = (geom.divLeft - farLeft) /
               geom.textScale + 'px';
