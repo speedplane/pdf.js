@@ -135,6 +135,7 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
       // Save info about the div in the geom for fast access.
       geom.divLeft = left;
       geom.divTop = top;
+      geom.fontHeight = fontHeight;
       if (angle) {
         geom.divAngle = angle;
       }
@@ -197,7 +198,7 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
           continue;
         }
         
-        var bottom = geom.divTop + geom.height * scale;
+        var bottom = geom.divTop + (geom.fontHeight) * scale;
         var right = geom.divLeft + geom.width * scale;
         
         var farRight = geom.right !== null ?
