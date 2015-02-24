@@ -193,6 +193,7 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
       var textDivs = []; // Just temporary
       for (var i = 0; i < len; i++) {
         textDivs.push(this.appendText(textItems[i], textContent.styles, ctx));
+<<<<<<< HEAD
       }
       // Set each element's padding to run to the nearest right and bottom 
       // element. The padding ensures that text selection works.
@@ -245,6 +246,60 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
           divi.style.top = '0px';
         }
       }
+=======
+      }
+      // Set each element's padding to run to the nearest right and bottom 
+      // element. The padding ensures that text selection works.
+      var pageW = this.textLayerDiv.offsetWidth;
+      var pageH = this.textLayerDiv.offsetHeight;
+      var scale = this.viewport.scale;
+      for (i = 0; i < len; i++) {
+        var geom = textItems[i];
+        var divi = textDivs[i];
+        
+        if (geom.divAngle) {
+          // Angled text is more complex and outside the scope... for now.
+          continue;
+        }
+        
+        var bottom = geom.divTop + geom.height * scale * LINE_HEIGHT;
+        var right = geom.divLeft + geom.width * scale;
+        
+        var farRight = geom.right !== null ?
+                        textItems[geom.right].divLeft : pageW;
+        var farBottom = geom.bottom !== null ?
+                         textItems[geom.bottom].divTop : pageH;
+        
+        // Update Padding. Apply textScale as appropriate (horizontal only).
+        divi.style.paddingRight = (farRight - right) / geom.textScale + 'px';
+        divi.style.paddingBottom = (farBottom - bottom) + 'px';
+        // If there is nothing to the left, then pad to the left
+        if (geom.left === undefined) {
+          // Fix left padding, taking into account the text scaling.
+          divi.style.paddingLeft = geom.divLeft / geom.textScale + 'px';
+          divi.style.left = '0px';
+        } else {
+          var leftItem = textItems[geom.left];
+          if (leftItem.right !== null && leftItem.right !== i &&
+              leftItem.divTop <= geom.divTop && (leftItem.bottom === null ||
+              textItems[leftItem.bottom].divTop >= bottom)) {
+            // The left object is too tall for its right padding to reach this 
+            // object. This object should extend its left padding to the right 
+            // padding of the left-most object.
+            var farLeft = textItems[leftItem.right].divLeft;
+            // No text scaling here because scaling is based on the left.
+            divi.style.left = farLeft + 'px';
+            divi.style.paddingLeft = (geom.divLeft - farLeft) /
+              geom.textScale + 'px';
+          }
+        }
+        // If there is nothing above us, then pad to the top
+        if (geom.top === undefined) {
+          divi.style.paddingTop = geom.divTop + 'px';
+          divi.style.top = '0px';
+        }
+      }
+>>>>>>> refs/remotes/origin/master
       this.textDivs = textDivs;
       
       this.divContentDone = true;
