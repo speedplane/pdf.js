@@ -1037,7 +1037,65 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
         } else {
           textChunk.height += Math.abs(height * scaleCtmX * scaleLineX);
         }
+        addSpaceIfNecessary(textChunk, font);
         return textChunk;
+      }
+      function getChunkPos(chunk, font) {
+        var tx = chunk.transform;
+        var angle = Math.atan2(tx[1], tx[0]);
+        if (font.vertical) {
+          angle += Math.PI / 2;
+        }
+        var fontHeight = Math.sqrt((tx[2] * tx[2]) + (tx[3] * tx[3]));
+        var fontAscent = fontHeight;
+        if (font.ascent) {
+          fontAscent = font.ascent * fontAscent;
+        } else if (font.descent) {
+          fontAscent = (1 + font.descent) * fontAscent;
+        }
+        return {
+          x : (angle === 0) ? tx[4] :(tx[4] + (fontAscent * Math.sin(angle))),
+          y: tx[5]
+        };
+      }
+      function addSpaceIfNecessary(newChunk, font) {
+        // If the new chunk starts with a space, it does not need one.
+        if (newChunk.str[0] === ' ' || newChunk.str[0] === '-') {
+          return;
+        }
+        if (bidiTexts.length === 0) {
+          return;
+        }
+        // If the last chunk ends with a space it does not need one.
+        var lastChunk = bidiTexts[bidiTexts.length - 1];
+        if (lastChunk.str.length === 0) {
+          return;
+        }
+        var lastChar = lastChunk.str[lastChunk.str.length - 1];
+        if (lastChar === ' ' || lastChar === '-') {
+          return;
+        }
+        var lastPos = getChunkPos(lastChunk, font);
+        var newPos = getChunkPos(newChunk, font);
+        var yDiff = Math.abs(lastPos.y  - newPos.y);
+        if (yDiff >= lastChunk.height || yDiff >= newChunk.height) {
+          // On different lines, add a space.
+          lastChunk.str += ' ';
+        } else {
+          var wordSpacing = textState.wordSpacing > 0 ?
+            // Standard wordSpacing
+            textState.wordSpacing:
+            // Hueristic for wordSpacing
+            wordSpacing = newChunk.width / newChunk.str.length * 0.6;
+          var addSpace = newPos.x >= lastPos.x ?
+            // Left to right
+            newPos.x >= lastPos.x + lastChunk.width + wordSpacing:
+            // Right to left
+            lastPos.x >= newPos.x + newChunk.width + wordSpacing;
+          if (addSpace) {
+            lastChunk.str += ' ';
+          }
+        }
       }
 
       var timeSlotManager = new TimeSlotManager();
